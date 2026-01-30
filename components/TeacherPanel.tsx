@@ -1,12 +1,16 @@
+
 import React, { useState, useEffect } from 'react';
 import { 
   ClipboardCheck, LogOut, ExternalLink, 
   UploadCloud, Loader2, Database, Eye, CheckCircle2, FileText
 } from 'lucide-react';
 import { Button } from './Button';
-import { db, auth, storage, onAuthStateChanged } from '../firebaseConfig';
-import { collection, updateDoc, doc, onSnapshot, query, where, orderBy } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+// Fix: Import all Firebase utilities from local config
+import { 
+  db, auth, storage, onAuthStateChanged,
+  collection, updateDoc, doc, onSnapshot, query, where, orderBy,
+  ref, uploadBytes, getDownloadURL
+} from '../firebaseConfig';
 import { PDFViewer } from './PDFViewer';
 
 interface TeacherPanelProps {

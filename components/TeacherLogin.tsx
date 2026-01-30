@@ -1,8 +1,11 @@
 import React, { useState } from 'react';
 import { ShieldCheck, Lock, User, ArrowLeft, Loader2, GraduationCap } from 'lucide-react';
 import { Button } from './Button';
-import { auth, signInWithEmailAndPassword, db } from '../firebaseConfig';
-import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
+// Fix: Import all Firebase utilities from local config
+import { 
+  auth, signInWithEmailAndPassword, db,
+  doc, getDoc, collection, query, where, getDocs 
+} from '../firebaseConfig';
 
 interface TeacherLoginProps {
   onLoginSuccess: () => void;
@@ -65,6 +68,7 @@ export const TeacherLogin: React.FC<TeacherLoginProps> = ({ onLoginSuccess, onBa
           <div className="p-8 md:p-10">
             <div className="text-center mb-8">
               <div className="inline-flex items-center justify-center w-16 h-16 bg-brand-orange/10 text-brand-orange rounded-2xl mb-4">
+                {/* Fixed lowercase graduationCap to GraduationCap */}
                 <GraduationCap size={32} />
               </div>
               <h1 className="text-2xl font-display font-bold text-brand-dark">Teacher Portal</h1>

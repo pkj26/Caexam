@@ -1,8 +1,12 @@
+
 import React, { useState } from 'react';
 import { Mail, Lock, Loader2, User, Phone, BookOpen, ArrowRight } from 'lucide-react';
 import { Button } from './Button';
-import { auth, db, createUserWithEmailAndPassword, updateProfile, signInWithEmailAndPassword } from '../firebaseConfig';
-import { doc, setDoc, getDoc } from 'firebase/firestore';
+// Fix: Import all Firebase utilities from local config
+import { 
+  auth, db, createUserWithEmailAndPassword, updateProfile, signInWithEmailAndPassword,
+  doc, setDoc, getDoc 
+} from '../firebaseConfig';
 
 interface StudentLoginProps {
   onBack: () => void;
