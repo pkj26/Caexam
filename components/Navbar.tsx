@@ -16,6 +16,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onNavigate, currentView, cartCou
   const navItems = [
     { name: 'About Us', view: 'about-detail' as ViewType },
     { name: 'Process', view: 'process-detail' as ViewType },
+    { name: 'Topics', view: 'topic-library' as ViewType },
     { name: 'Blog', view: 'blog' as ViewType },
     { name: 'Pricing', view: 'pricing-detail' as ViewType },
   ];

@@ -25,9 +25,10 @@ import { Checkout } from './components/Checkout';
 import { Blog } from './components/Blog';
 import { BlogPost } from './components/BlogPost';
 import { CourseLanding } from './components/CourseLanding';
+import { TopicLibrary } from './components/TopicLibrary';
 import { auth, signOut } from './firebaseConfig';
 
-export type ViewType = 'home' | 'about-detail' | 'test-detail' | 'process-detail' | 'mentors-detail' | 'pricing-detail' | 'topic-detail' | 'admin-panel' | 'admin-login' | 'teacher-login' | 'teacher-panel' | 'test-series-detail' | 'student-login' | 'student-dashboard' | 'checkout' | 'blog' | 'blog-post' | 'final-landing' | 'inter-landing' | 'foundation-landing';
+export type ViewType = 'home' | 'about-detail' | 'test-detail' | 'process-detail' | 'mentors-detail' | 'pricing-detail' | 'topic-detail' | 'admin-panel' | 'admin-login' | 'teacher-login' | 'teacher-panel' | 'test-series-detail' | 'student-login' | 'student-dashboard' | 'checkout' | 'blog' | 'blog-post' | 'final-landing' | 'inter-landing' | 'foundation-landing' | 'topic-library';
 
 export interface CartItem {
   id: string;
@@ -115,13 +116,16 @@ const App: React.FC = () => {
       if (hash === 'ca-inter-test-series') { setView('inter-landing'); return; }
       if (hash === 'ca-foundation-test-series') { setView('foundation-landing'); return; }
 
+      // Topic Library & Details
+      if (hash === 'topic-library') { setView('topic-library'); return; }
+
       if (hash.startsWith('topic-')) {
         const topicName = hash.replace('topic-', '').replace(/-/g, ' ');
         setSelectedTopic(topicName);
         setView('topic-detail');
-      } else if (['home', 'about-detail', 'test-detail', 'process-detail', 'mentors-detail', 'pricing-detail', 'admin-panel', 'teacher-panel', 'test-series-detail', 'student-login', 'student-dashboard', 'checkout', 'blog'].includes(hash)) {
+      } else if (['home', 'about-detail', 'test-detail', 'process-detail', 'mentors-detail', 'pricing-detail', 'admin-panel', 'teacher-panel', 'test-series-detail', 'student-login', 'student-dashboard', 'checkout', 'blog', 'topic-library'].includes(hash)) {
         if (hash === 'admin-panel' && !isAdminLoggedIn) { setView('admin-login'); return; }
-        if (hash === 'teacher-panel' && !isTeacherLoggedIn) { setView('teacher-login'); return; }
+        if (hash === 'teacher-panel' && !isTeacherLoggedIn) { setView('teacher-panel'); return; }
         setView(hash as ViewType || 'home');
         setSelectedTopic(null);
       } else {
@@ -144,6 +148,8 @@ const App: React.FC = () => {
       window.location.hash = 'ca-inter-test-series';
     } else if (newView === 'foundation-landing') {
       window.location.hash = 'ca-foundation-test-series';
+    } else if (newView === 'topic-library') {
+      window.location.hash = 'topic-library';
     } else {
       window.location.hash = newView;
     }
@@ -199,6 +205,8 @@ const App: React.FC = () => {
           <CourseLanding level="inter" onNavigate={navigate} onAddToCart={(item) => setCart([...cart, item])} />
         ) : view === 'foundation-landing' ? (
           <CourseLanding level="foundation" onNavigate={navigate} onAddToCart={(item) => setCart([...cart, item])} />
+        ) : view === 'topic-library' ? (
+          <TopicLibrary onNavigate={navigate} />
         ) : (
           <DetailedPages view={view} topic={selectedTopic} onBack={() => navigate('home')} onNavigate={navigate} onAddToCart={(item) => setCart([...cart, item])} />
         )}

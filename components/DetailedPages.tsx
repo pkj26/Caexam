@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ArrowLeft, CheckCircle2, Shield, Users, Target, BookCheck, ClipboardList, Info, GraduationCap, Star, Share2, Download, FileText, ChevronRight, Bookmark, BookOpen, Layers, Award, Check } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, Shield, Users, Target, BookCheck, ClipboardList, Info, GraduationCap, Star, Share2, Download, FileText, ChevronRight, Bookmark, BookOpen, Layers, Award, Check, Zap, Lightbulb, TrendingUp, HelpCircle } from 'lucide-react';
 import { Button } from './Button';
 import { ViewType } from '../App';
 
@@ -38,7 +38,6 @@ const PageHeader = ({ title, subtitle, category, onBack }: { title: string, subt
   </div>
 );
 
-// Pricing Detail Component
 const PricingDetail = ({ onBack, onNavigate, onAddToCart }: { onBack: () => void, onNavigate: (v: ViewType) => void, onAddToCart: (item: any) => void }) => {
   const [selectedLevel, setSelectedLevel] = useState<'foundation' | 'inter' | 'final'>('final');
 
@@ -212,61 +211,6 @@ const PricingDetail = ({ onBack, onNavigate, onAddToCart }: { onBack: () => void
             </div>
           ))}
         </div>
-
-        {/* Comparison Table */}
-        <div className="mt-24 hidden md:block">
-          <h3 className="text-2xl font-display font-bold text-center mb-12">Detailed Feature Comparison</h3>
-          <div className="overflow-hidden rounded-3xl border border-slate-200 shadow-sm">
-            <table className="w-full text-left border-collapse bg-white">
-              <thead>
-                <tr className="bg-slate-50 border-b border-slate-200">
-                  <th className="py-5 px-8 text-xs font-black text-brand-dark/40 uppercase tracking-widest w-1/3">Features</th>
-                  {currentPlans.map((p, i) => (
-                    <th key={i} className={`py-5 px-8 text-center text-lg font-bold ${p.popular ? 'text-brand-primary' : 'text-brand-dark'}`}>
-                      {p.name}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {[
-                  { label: "Number of Tests", v: ["2 Full Tests", "14 Tests", "Unlimited"] },
-                  { label: "Evaluation Time", v: ["72 Hours", "48 Hours", "24 Hours"] },
-                  { label: "Suggested Answers", v: [true, true, true] },
-                  { label: "Topper Sheet Access", v: [false, true, true] },
-                  { label: "Mentorship Calls", v: ["No", "1 Call", "Weekly Calls"] },
-                  { label: "Custom Schedule", v: [false, false, true] },
-                  { label: "Pass Guarantee", v: [false, false, true] },
-                ].map((row, idx) => (
-                  <tr key={idx} className="hover:bg-slate-50/50 transition-colors">
-                    <td className="py-4 px-8 text-sm font-bold text-brand-dark">{row.label}</td>
-                    {row.v.map((val, vIdx) => (
-                      <td key={vIdx} className="py-4 px-8 text-center text-sm text-slate-600">
-                        {val === true ? <CheckCircle2 size={20} className="mx-auto text-green-500 fill-green-50" /> : 
-                         val === false ? <div className="w-1.5 h-1.5 bg-slate-300 rounded-full mx-auto" /> : 
-                         <span className="font-bold">{val}</span>}
-                      </td>
-                    ))}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        {/* Refund Policy Note */}
-        <div className="mt-16 bg-brand-cream border border-brand-orange/20 rounded-2xl p-6 md:p-8 flex flex-col md:flex-row items-start gap-6">
-          <div className="w-12 h-12 bg-brand-orange/10 rounded-xl flex items-center justify-center shrink-0">
-             <Shield className="text-brand-orange" size={24} />
-          </div>
-          <div>
-            <h4 className="text-xl font-display font-bold text-brand-dark mb-2">100% Money Back Guarantee</h4>
-            <p className="text-brand-dark/70 leading-relaxed">
-              We are so confident in our evaluation quality that if you find any discrepancy in our checking compared to ICAI standards, or if we fail to deliver within the promised time, we will refund your entire fee for that test. No questions asked.
-            </p>
-          </div>
-        </div>
-
       </div>
     </div>
   );
@@ -277,81 +221,145 @@ export const DetailedPages: React.FC<DetailedPagesProps> = ({ view, topic, onBac
   const TopicDetail = () => {
     if (!topic) return <div>Topic Not Found</div>;
 
-    // SEO Data Repository for Topics
+    // Rich Topic Data Repository
     const topicData: Record<string, any> = {
-      "ca final audit mcq": {
-        title: "Mastering CA Final Audit MCQs: Strategies & Practice",
-        desc: "Everything you need to know about ICAI's 30-mark MCQ pattern for Audit.",
-        points: ["Understand 'Case Scenario' based questions", "Focus on Standard on Auditing (SA) Keywords", "Integrated MCQ Practice strategy", "Negative marking precautions"],
-        content: "MCQs in CA Final Audit are not just memory-based; they are highly conceptual. ICAI now focuses on testing your 'Professional Skepticism' through integrated case studies. To rank #1 in this subject, you must master the art of elimination and keyword identification."
+      "what is gst?": {
+        title: "GST Explained Simply",
+        category: "Indirect Taxation",
+        intro: "GST is like a single entry ticket to a fair. Instead of paying at every stall (Manufacturer, Wholesaler, Retailer), you pay only on the value you add.",
+        diagram: {
+          type: "flow",
+          steps: [
+            { label: "Manufacturer", tax: "₹10", desc: "Buys raw materials" },
+            { label: "Wholesaler", tax: "₹2", desc: "Adds value & margin" },
+            { label: "Retailer", tax: "₹3", desc: "Sells to customer" },
+            { label: "Consumer", tax: "₹15", desc: "Pays final price" }
+          ]
+        },
+        keyPoints: [
+          "Destination Based Tax",
+          "Removed Cascading Effect (Tax on Tax)",
+          "Unified Market across India",
+          "Input Tax Credit (ITC) is the backbone"
+        ],
+        simplifiedExample: "If you buy a shirt for ₹1000, the ₹50 tax goes once. Earlier, cotton had tax, thread had tax, and shirt had tax separately!"
       },
-      "icai new scheme 2024": {
-        title: "Complete Guide to ICAI New Scheme 2024",
-        desc: "Deep dive into the syllabus changes, exam pattern shifts, and transition rules.",
-        points: ["Self-Paced Module requirements", "Changes in Grouping & Exemptions", "Negative Marking for MCQs", "New Subjects & Integrated Business Solutions"],
-        content: "The 2024 New Scheme is a paradigm shift towards global standards. With the introduction of Self-Paced modules and the multidisciplinary Paper 6, students need a fresh approach. Our test series is 100% updated to mirror these changes."
+      "what is audit?": {
+        title: "Audit: The Corporate Health Checkup",
+        category: "Auditing",
+        intro: "Think of an Auditor as a Doctor for a company's money. They check if the financial 'vitals' are normal and the company isn't hiding any illness (Fraud).",
+        diagram: {
+          type: "cycle",
+          steps: ["Plan the Checkup", "Collect Evidence", "Check the Bills", "Give Final Report"]
+        },
+        keyPoints: [
+          "Independent Examination",
+          "True and Fair view check",
+          "Not just finding frauds",
+          "Trust for Shareholders"
+        ],
+        simplifiedExample: "Just like your school teacher checks your homework to ensure you didn't just copy the answers, an Auditor checks a company's books."
       },
-      "air 1 strategy": {
-        title: "The Ultimate AIR 1 Preparation Roadmap",
-        desc: "Proven tactics used by CA toppers to secure All India Rank 1.",
-        points: ["Three-cycle revision plan", "Daily Writing Practice (The X-Factor)", "ICAI Study Material focus", "Mental Health & Consistency"],
-        content: "Getting a rank is not about studying 18 hours a day; it's about studying effectively. Every AIR 1 topper we've interviewed emphasizes 'Presentation Skills'. If you can't present what you know in ICAI's language, you lose the rank."
-      },
-      "gst revision": {
-        title: "Fast-Track GST Revision for CA Exams",
-        desc: "Summarized GST notes, latest amendments, and critical sections.",
-        points: ["Input Tax Credit (ITC) Critical Rules", "Place of Supply - Practical Scenarios", "Time & Value of Supply", "Latest GST Circulars"],
-        content: "GST is a dynamic subject. Every attempt brings new amendments that are high-probability questions. Our GST revision guide ensures you don't miss any critical notification that ICAI might test."
+      "what is dividend?": {
+        title: "Dividend: Your Slice of the Profit Cake",
+        category: "Economics / Law",
+        intro: "When you invest in a company, you become a partner. When the company makes a profit, it gives you a 'Thank You' gift in cash—that's a Dividend.",
+        diagram: {
+          type: "simple",
+          steps: ["Company Earns Profit", "Keeps some for growth", "Distributes rest to you"]
+        },
+        keyPoints: [
+          "Part of Divisible Profit",
+          "Decided by Board of Directors",
+          "Paid to Shareholders",
+          "Can be Final or Interim"
+        ]
       }
     };
 
     const data = topicData[topic.toLowerCase()] || {
-      title: `${topic} - Essential Guide for CA Aspirants`,
-      desc: `Comprehensive resources and insights for ${topic} to help you clear CA Exams.`,
-      points: [`Latest ${topic} Trends`, `Expert Analysis`, `Practice Questions`, `Topper Insights`],
-      content: `This topic is a critical part of the CA curriculum. Mastery in ${topic} requires a mix of theoretical knowledge and practical application. In our test series, we cover this area with high-probability questions to ensure you are exam-ready.`
+      title: `${topic} Simplified`,
+      category: "CA Concept",
+      intro: `Understanding ${topic} in the most simple way possible.`,
+      keyPoints: ["Essential Concept", "Exam Favorite", "Conceptual Clarity", "Case Study Focus"],
+      diagram: null
     };
 
     return (
       <div className="animate-fade-up">
-        <PageHeader title={data.title} subtitle={data.desc} category="Trending Resource" onBack={onBack} />
-        <div className="max-w-7xl mx-auto py-16 px-4">
-          <div className="flex flex-col lg:flex-row gap-12">
-            
-            {/* Main Content Area */}
-            <div className="lg:w-2/3 space-y-12">
-              <section className="bg-white p-8 rounded-3xl border border-brand-primary/10 shadow-sm">
-                <div className="flex items-center gap-3 mb-6">
-                  <Bookmark className="text-brand-orange" />
-                  <h2 className="text-2xl font-display font-bold text-brand-dark">Overview & Context</h2>
-                </div>
-                <p className="text-brand-dark/70 text-lg leading-relaxed">
-                  {data.content}
-                </p>
-                
-                <div className="grid md:grid-cols-2 gap-4 mt-10">
-                  {data.points.map((p: string, i: number) => (
-                    <div key={i} className="flex gap-3 items-center p-4 bg-brand-cream rounded-xl border border-brand-primary/5">
-                      <CheckCircle2 size={18} className="text-brand-primary shrink-0" />
-                      <span className="text-sm font-bold text-brand-dark">{p}</span>
-                    </div>
-                  ))}
-                </div>
-              </section>
-
-              <div className="bg-brand-dark rounded-3xl p-10 text-white relative overflow-hidden">
-                <div className="absolute -bottom-10 -right-10 opacity-10">
-                  <Star size={200} fill="white" />
-                </div>
-                <h3 className="text-2xl font-display font-bold mb-4">Want more practice on {topic}?</h3>
-                <p className="opacity-70 mb-8">Get exclusive access to our 2024 Question Bank and Mentorship for this specific topic.</p>
-                <div className="flex flex-wrap gap-4">
-                  <Button variant="primary" onClick={() => onNavigate('pricing-detail')}>Join Test Series</Button>
-                  <Button variant="outline" className="border-white/20 text-white hover:bg-white/10">Download Free Notes</Button>
-                </div>
+        <PageHeader title={data.title} subtitle={data.category} category="Topic Library" onBack={onBack} />
+        
+        <div className="max-w-4xl mx-auto py-16 px-4">
+           {/* Intro Card */}
+           <div className="bg-white p-8 rounded-[3rem] border border-slate-100 shadow-xl mb-12">
+              <div className="flex items-center gap-3 mb-6">
+                 <div className="w-10 h-10 bg-brand-primary/10 text-brand-primary rounded-xl flex items-center justify-center">
+                    <Lightbulb size={24} />
+                 </div>
+                 <h2 className="text-xl font-bold text-brand-dark uppercase tracking-widest text-[12px]">Layman Explanation</h2>
               </div>
-            </div>
-          </div>
+              <p className="text-lg text-brand-dark/70 leading-relaxed font-medium">
+                {data.intro}
+              </p>
+           </div>
+
+           {/* Conceptual Diagram Builder */}
+           {data.diagram && (
+             <div className="mb-12">
+                <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] text-center mb-8">Visual Representation</h3>
+                <div className="flex flex-col md:flex-row items-center justify-center gap-4">
+                   {data.diagram.steps.map((step: any, i: number) => (
+                     <React.Fragment key={i}>
+                        <div className="w-full md:w-40 bg-brand-cream border-2 border-brand-primary/10 rounded-2xl p-4 text-center hover:border-brand-primary transition-all group">
+                           <p className="font-black text-brand-primary text-xs mb-1">{typeof step === 'string' ? step : step.label}</p>
+                           {step.desc && <p className="text-[10px] text-slate-400 leading-tight">{step.desc}</p>}
+                           {step.tax && <p className="text-[10px] font-bold text-brand-orange mt-2">{step.tax}</p>}
+                        </div>
+                        {i < data.diagram.steps.length - 1 && (
+                          <div className="text-brand-primary/20 transform rotate-90 md:rotate-0">
+                             <ChevronRight size={24} />
+                          </div>
+                        )}
+                     </React.Fragment>
+                   ))}
+                </div>
+             </div>
+           )}
+
+           {/* Key Takeaways */}
+           <div className="grid md:grid-cols-2 gap-8 mb-12">
+              <div className="space-y-4">
+                 <h4 className="font-bold text-brand-dark flex items-center gap-2">
+                    <Zap className="text-brand-orange" size={18} /> Important Points
+                 </h4>
+                 <div className="space-y-3">
+                    {data.keyPoints.map((p: string, i: number) => (
+                      <div key={i} className="flex items-start gap-3 text-sm text-slate-600 font-medium">
+                         <div className="w-5 h-5 rounded-full bg-green-50 flex items-center justify-center shrink-0 mt-0.5">
+                            <Check size={12} className="text-green-600" />
+                         </div>
+                         {p}
+                      </div>
+                    ))}
+                 </div>
+              </div>
+              <div className="bg-brand-dark text-white p-8 rounded-[2.5rem] relative overflow-hidden">
+                 <div className="absolute -top-6 -right-6 opacity-10"><Target size={100}/></div>
+                 <h4 className="font-bold mb-4 flex items-center gap-2"><TrendingUp size={18} className="text-brand-primary"/> Exam Weightage</h4>
+                 <p className="text-xs text-white/60 leading-relaxed">This topic is usually tested for <span className="text-white font-black">4-6 Marks</span> in Descriptive or MCQs. ICAI loves asking "Application based" questions on this.</p>
+                 <button onClick={() => onNavigate('pricing-detail')} className="mt-6 text-[10px] font-black uppercase text-brand-primary hover:text-white transition-colors">Solve Practice Questions →</button>
+              </div>
+           </div>
+
+           {/* Help Section */}
+           <div className="text-center p-12 bg-slate-50 rounded-[3rem] border border-slate-200">
+              <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center mx-auto mb-4 text-slate-400">
+                 <HelpCircle size={24} />
+              </div>
+              <h4 className="text-lg font-bold text-brand-dark mb-2">Still Confused?</h4>
+              <p className="text-sm text-slate-500 mb-6">Our All India Rankers can explain this to you on a 1-on-1 Mentorship call.</p>
+              <Button variant="outline" onClick={() => onNavigate('student-login')}>Book a Free Doubt Session</Button>
+           </div>
         </div>
       </div>
     );
