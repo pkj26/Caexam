@@ -22,9 +22,11 @@ import { StudentDashboard } from './components/StudentDashboard';
 import { TeacherLogin } from './components/TeacherLogin';
 import { TeacherPanel } from './components/TeacherPanel';
 import { Checkout } from './components/Checkout';
+import { Blog } from './components/Blog';
+import { BlogPost } from './components/BlogPost';
 import { auth, signOut } from './firebaseConfig';
 
-export type ViewType = 'home' | 'about-detail' | 'test-detail' | 'process-detail' | 'mentors-detail' | 'pricing-detail' | 'topic-detail' | 'admin-panel' | 'admin-login' | 'teacher-login' | 'teacher-panel' | 'test-series-detail' | 'student-login' | 'student-dashboard' | 'checkout';
+export type ViewType = 'home' | 'about-detail' | 'test-detail' | 'process-detail' | 'mentors-detail' | 'pricing-detail' | 'topic-detail' | 'admin-panel' | 'admin-login' | 'teacher-login' | 'teacher-panel' | 'test-series-detail' | 'student-login' | 'student-dashboard' | 'checkout' | 'blog' | 'blog-post';
 
 export interface CartItem {
   id: string;
@@ -73,6 +75,7 @@ const INITIAL_PLANS = [
 const App: React.FC = () => {
   const [view, setView] = useState<ViewType>('home');
   const [selectedTopic, setSelectedTopic] = useState<string | null>(null);
+  const [selectedPostId, setSelectedPostId] = useState<string | null>(null);
   const [isAdminLoggedIn, setIsAdminLoggedIn] = useState(false);
   const [isTeacherLoggedIn, setIsTeacherLoggedIn] = useState(false);
   const [isStudentLoggedIn, setIsStudentLoggedIn] = useState(false);
@@ -99,11 +102,16 @@ const App: React.FC = () => {
         isTeacherLoggedIn ? setView('teacher-panel') : setView('teacher-login');
         return;
       }
+      if (hash.startsWith('blog-post-')) {
+        setSelectedPostId(hash.replace('blog-post-', ''));
+        setView('blog-post');
+        return;
+      }
       if (hash.startsWith('topic-')) {
         const topicName = hash.replace('topic-', '').replace(/-/g, ' ');
         setSelectedTopic(topicName);
         setView('topic-detail');
-      } else if (['home', 'about-detail', 'test-detail', 'process-detail', 'mentors-detail', 'pricing-detail', 'admin-panel', 'teacher-panel', 'test-series-detail', 'student-login', 'student-dashboard', 'checkout'].includes(hash)) {
+      } else if (['home', 'about-detail', 'test-detail', 'process-detail', 'mentors-detail', 'pricing-detail', 'admin-panel', 'teacher-panel', 'test-series-detail', 'student-login', 'student-dashboard', 'checkout', 'blog'].includes(hash)) {
         if (hash === 'admin-panel' && !isAdminLoggedIn) { setView('admin-login'); return; }
         if (hash === 'teacher-panel' && !isTeacherLoggedIn) { setView('teacher-login'); return; }
         setView(hash as ViewType || 'home');
@@ -117,9 +125,11 @@ const App: React.FC = () => {
     return () => window.removeEventListener('hashchange', handleHashChange);
   }, [isAdminLoggedIn, isTeacherLoggedIn]);
 
-  const navigate = (newView: ViewType, topic?: string) => {
-    if (newView === 'topic-detail' && topic) {
-      window.location.hash = `topic-${topic.toLowerCase().replace(/\s+/g, '-')}`;
+  const navigate = (newView: ViewType, id?: string) => {
+    if (newView === 'topic-detail' && id) {
+      window.location.hash = `topic-${id.toLowerCase().replace(/\s+/g, '-')}`;
+    } else if (newView === 'blog-post' && id) {
+      window.location.hash = `blog-post-${id}`;
     } else {
       window.location.hash = newView;
     }
@@ -165,6 +175,10 @@ const App: React.FC = () => {
           <StudentLogin onLoginSuccess={() => { setIsStudentLoggedIn(true); navigate('student-dashboard'); }} onBack={() => navigate('home')} />
         ) : view === 'student-dashboard' ? (
           <StudentDashboard onLogout={handleStudentLogout} />
+        ) : view === 'blog' ? (
+          <Blog onNavigate={navigate} />
+        ) : view === 'blog-post' ? (
+          <BlogPost id={selectedPostId} onBack={() => navigate('blog')} onNavigate={navigate} />
         ) : (
           <DetailedPages view={view} topic={selectedTopic} onBack={() => navigate('home')} onNavigate={navigate} onAddToCart={(item) => setCart([...cart, item])} />
         )}

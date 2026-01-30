@@ -201,7 +201,7 @@ export const StudentLogin: React.FC<StudentLoginProps> = ({ onBack, onLoginSucce
                     <input 
                       name="phone" type="tel" required maxLength={10}
                       className="w-full pl-12 pr-4 py-3 bg-white border border-slate-100 rounded-2xl text-sm focus:ring-4 focus:ring-brand-primary/5 outline-none transition-all font-bold text-brand-dark"
-                      placeholder="9799479444"
+                      placeholder="Enter 10-digit number"
                       value={formData.phone} onChange={handleChange}
                     />
                   </div>
