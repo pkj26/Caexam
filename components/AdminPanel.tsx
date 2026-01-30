@@ -6,7 +6,9 @@ import {
   Database, Eye, CheckCircle2, 
   Calendar, GraduationCap, Gavel,
   Check, X, Tag, Loader2, Upload, BookOpen,
-  TrendingUp, BarChart3, ChevronRight, XCircle, Target
+  TrendingUp, BarChart3, ChevronRight, XCircle, Target, Phone, MessageSquare,
+  Clock, Award, ShieldCheck, History as HistoryIcon,
+  CheckCircle, AlertCircle, FileCheck
 } from 'lucide-react';
 import { Button } from './Button';
 import { PDFViewer } from './PDFViewer';
@@ -33,7 +35,7 @@ interface AdminPanelProps {
   onBack: () => void;
 }
 
-type TabType = 'dashboard' | 'students' | 'teachers' | 'approvals' | 'tests' | 'library' | 'plans' | 'settings';
+type TabType = 'dashboard' | 'students' | 'teachers' | 'approvals' | 'history' | 'tests' | 'library' | 'bookings' | 'settings';
 
 const LEVEL_SUBJECTS: Record<string, string[]> = {
   'CA Final': ['P1: Financial Reporting', 'P2: AFM', 'P3: Adv. Auditing', 'P4: Direct Tax', 'P5: Indirect Tax', 'P6: IBS'],
@@ -52,8 +54,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ plans, onUpdatePlans, on
   const [submissions, setSubmissions] = useState<any[]>([]);
   const [materials, setMaterials] = useState<any[]>([]);
   const [tests, setTests] = useState<any[]>([]);
+  const [bookings, setBookings] = useState<any[]>([]);
 
   const [selectedStudent, setSelectedStudent] = useState<any | null>(null);
+  const [selectedTeacher, setSelectedTeacher] = useState<any | null>(null);
+  const [rejectionFeedback, setRejectionFeedback] = useState('');
 
   useEffect(() => {
     setLoading(true);
@@ -73,9 +78,12 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ plans, onUpdatePlans, on
       setSubmissions(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
       setLoading(false);
     });
+    const unsubBookings = onSnapshot(query(collection(db, "bookings"), orderBy("requestedAt", "desc")), (snap) => {
+      setBookings(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    });
 
     return () => {
-      unsubStudents(); unsubTeachers(); unsubTests(); unsubMaterials(); unsubSubmissions();
+      unsubStudents(); unsubTeachers(); unsubTests(); unsubMaterials(); unsubSubmissions(); unsubBookings();
     };
   }, []);
 
@@ -134,10 +142,33 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ plans, onUpdatePlans, on
     try { await deleteDoc(doc(db, collectionName, id)); } catch (err) { alert("Delete failed."); }
   };
 
+  const handleBookingStatus = async (id: string, status: string) => {
+    try {
+      await updateDoc(doc(db, "bookings", id), { status });
+    } catch (e) {
+      alert("Status update failed.");
+    }
+  };
+
+  const handleApprovalAction = async (id: string, action: 'Approve' | 'Reject') => {
+    try {
+      const status = action === 'Approve' ? 'Evaluated' : 'Rejected';
+      const updateData: any = { status };
+      if (action === 'Reject' && rejectionFeedback) {
+        updateData.feedback = rejectionFeedback;
+      }
+      await updateDoc(doc(db, "submissions", id), updateData);
+      setRejectionFeedback('');
+      alert(`Submission ${action}d Successfully.`);
+    } catch (e) {
+      alert("Action failed.");
+    }
+  };
+
   const SidebarItem = ({ id, icon: Icon, label, badge }: { id: TabType, icon: any, label: string, badge?: number }) => (
     <button 
       onClick={() => { setActiveTab(id); setSearchTerm(''); }}
-      className={`w-full flex items-center justify-between px-4 py-3 rounded-xl font-bold text-sm transition-all ${activeTab === id ? 'bg-brand-primary text-white shadow-lg' : 'text-white/60 hover:bg-white/10 hover:text-white'}`}
+      className={`w-full flex items-center justify-between px-4 py-3 rounded-xl font-bold text-sm transition-all ${activeTab === id ? 'bg-brand-primary text-white shadow-lg shadow-brand-primary/20' : 'text-white/60 hover:bg-white/10 hover:text-white'}`}
     >
       <div className="flex items-center gap-3"><Icon size={18} /> {label}</div>
       {badge ? <span className="bg-red-500 text-white text-[10px] px-2 py-0.5 rounded-full">{badge}</span> : null}
@@ -145,7 +176,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ plans, onUpdatePlans, on
   );
 
   return (
-    <div className="min-h-screen bg-slate-50 flex font-sans">
+    <div className="min-h-screen bg-slate-50 flex font-sans text-brand-dark">
       {viewingPdf && <PDFViewer url={viewingPdf.url} title={viewingPdf.title} onClose={() => setViewingPdf(null)} />}
 
       <aside className="hidden lg:flex w-64 bg-brand-dark p-6 flex-col shrink-0 min-h-screen sticky top-0 z-20">
@@ -159,11 +190,12 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ plans, onUpdatePlans, on
         <nav className="flex-1 space-y-1">
           <SidebarItem id="dashboard" icon={LayoutDashboard} label="Overview" />
           <SidebarItem id="approvals" icon={Gavel} label="Approvals" badge={submissions.filter((s:any) => s.status === 'Review').length} />
+          <SidebarItem id="history" icon={HistoryIcon} label="Full History" />
+          <SidebarItem id="bookings" icon={Calendar} label="Mentorships" badge={bookings.filter((b:any) => b.status === 'Pending').length} />
           <SidebarItem id="students" icon={Users} label="Students" />
           <SidebarItem id="teachers" icon={GraduationCap} label="Evaluators" />
           <SidebarItem id="tests" icon={FileText} label="Test Series" />
           <SidebarItem id="library" icon={Library} label="Library" />
-          <SidebarItem id="settings" icon={Settings} label="Settings" />
         </nav>
         <div className="pt-6 border-t border-white/10 space-y-2">
           <button onClick={onBack} className="w-full flex items-center gap-3 px-4 py-2.5 text-white/50 text-sm font-bold hover:text-white transition-colors"><ExternalLink size={16} /> Live View</button>
@@ -177,7 +209,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ plans, onUpdatePlans, on
              <h2 className="text-3xl font-display font-bold text-brand-dark capitalize">{activeTab}</h2>
              <p className="text-xs text-slate-400 mt-1 font-bold">Platform Management System.</p>
           </div>
-          {['students', 'teachers', 'library', 'tests'].includes(activeTab) && (
+          {['students', 'teachers', 'library', 'tests', 'history'].includes(activeTab) && (
              <div className="relative w-full md:w-64">
                 <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                 <input type="text" placeholder="Search..." className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-bold outline-none shadow-sm" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
@@ -191,6 +223,156 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ plans, onUpdatePlans, on
           </div>
         ) : (
           <div className="animate-fade-up">
+            {activeTab === 'teachers' && (
+               <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
+                 <table className="w-full text-left">
+                    <thead className="bg-slate-50">
+                       <tr className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                          <th className="px-6 py-4">Evaluator Name</th>
+                          <th className="px-6 py-4">Specialization</th>
+                          <th className="px-6 py-4">Checking Load</th>
+                          <th className="px-6 py-4 text-right">Performance</th>
+                       </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-50">
+                       {teachers.filter((t:any) => t.name.toLowerCase().includes(searchTerm.toLowerCase())).map((t: any) => {
+                          const teacherSubs = submissions.filter(sub => sub.evaluatorId === t.id);
+                          return (
+                            <tr key={t.id} className="hover:bg-slate-50/50">
+                               <td className="px-6 py-4">
+                                  <p className="text-sm font-bold text-brand-dark">{t.name}</p>
+                                  <p className="text-[10px] text-slate-400">{t.email}</p>
+                               </td>
+                               <td className="px-6 py-4">
+                                 <span className="px-2 py-0.5 bg-slate-100 rounded text-[10px] font-bold text-slate-500 uppercase">{t.subject?.split(':')[0] || 'General'}</span>
+                               </td>
+                               <td className="px-6 py-4">
+                                  <div className="flex items-center gap-2">
+                                     <span className="text-xs font-bold text-brand-dark">{teacherSubs.length}</span>
+                                     <span className="text-[9px] font-black text-slate-300 uppercase">Copies</span>
+                                  </div>
+                               </td>
+                               <td className="px-6 py-4 text-right flex items-center justify-end gap-2">
+                                  <button 
+                                    onClick={() => setSelectedTeacher({ ...t, history: teacherSubs })} 
+                                    className="px-3 py-1.5 text-brand-orange bg-brand-orange/5 hover:bg-brand-orange hover:text-white transition-all rounded-xl flex items-center gap-1 text-[10px] font-black uppercase"
+                                  >
+                                    <TrendingUp size={14} /> Performance Insight
+                                  </button>
+                                  <button onClick={() => handleDelete('teachers', t.id)} className="p-2 text-red-400 hover:bg-red-50 rounded-lg transition-colors"><Trash2 size={16} /></button>
+                               </td>
+                            </tr>
+                          );
+                       })}
+                    </tbody>
+                 </table>
+               </div>
+            )}
+
+            {activeTab === 'approvals' && (
+              <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
+                <div className="p-6 border-b border-slate-100 bg-slate-50/50">
+                    <h3 className="font-bold text-brand-dark">Evaluation Approval Queue</h3>
+                    <p className="text-xs text-slate-400">Review teacher evaluations before releasing to students.</p>
+                </div>
+                <div className="overflow-x-auto">
+                    <table className="w-full text-left">
+                        <thead className="bg-slate-50">
+                        <tr className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                            <th className="px-8 py-4">Student & Paper</th>
+                            <th className="px-8 py-4">Evaluator</th>
+                            <th className="px-8 py-4">Marks Given</th>
+                            <th className="px-8 py-4 text-right">Approval Actions</th>
+                        </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-50">
+                        {submissions.filter(s => s.status === 'Review').map((sub) => (
+                            <tr key={sub.id} className="hover:bg-slate-50/50">
+                                <td className="px-8 py-5">
+                                    <p className="text-sm font-bold text-brand-dark">{sub.studentName}</p>
+                                    <p className="text-[10px] text-brand-primary font-bold">{sub.testTitle}</p>
+                                </td>
+                                <td className="px-8 py-5">
+                                    <span className="text-xs font-medium text-slate-500">{sub.evaluatorName}</span>
+                                </td>
+                                <td className="px-8 py-5 font-black text-brand-dark">{sub.marks}</td>
+                                <td className="px-8 py-5 text-right flex justify-end gap-2">
+                                    <button onClick={() => handleApprovalAction(sub.id, 'Approve')} className="px-3 py-1.5 bg-green-500 text-white rounded-xl text-[10px] font-black uppercase hover:bg-green-600 shadow-lg shadow-green-500/20">Finalize</button>
+                                    <button onClick={() => {
+                                        const feedback = prompt("Enter Rejection Feedback for Teacher:");
+                                        if(feedback) { setRejectionFeedback(feedback); handleApprovalAction(sub.id, 'Reject'); }
+                                    }} className="px-3 py-1.5 bg-red-100 text-red-600 rounded-xl text-[10px] font-black uppercase hover:bg-red-600 hover:text-white transition-all">Reject</button>
+                                </td>
+                            </tr>
+                        ))}
+                        </tbody>
+                    </table>
+                </div>
+                {submissions.filter(s => s.status === 'Review').length === 0 && (
+                  <div className="py-24 text-center text-slate-300 font-bold italic">No submissions pending approval.</div>
+                )}
+              </div>
+            )}
+
+            {activeTab === 'history' && (
+              <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
+                <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                    <div>
+                      <h3 className="font-bold text-brand-dark">Master Evaluation Log</h3>
+                      <p className="text-xs text-slate-400">Live monitoring of all checked papers across the platform.</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                       <span className="text-[10px] font-black text-slate-400 uppercase">Live Sync:</span>
+                       <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                    </div>
+                </div>
+                <table className="w-full text-left">
+                    <thead className="bg-slate-50">
+                        <tr className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                            <th className="px-8 py-4">Student</th>
+                            <th className="px-8 py-4">Paper</th>
+                            <th className="px-8 py-4">Evaluator</th>
+                            <th className="px-8 py-4">Status</th>
+                            <th className="px-8 py-4 text-right">Preview Results</th>
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-50">
+                        {submissions.filter(s => 
+                            s.studentName.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                            s.testTitle.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                            (s.evaluatorName && s.evaluatorName.toLowerCase().includes(searchTerm.toLowerCase()))
+                        ).map((h: any) => (
+                           <tr key={h.id} className="hover:bg-slate-50/50 group">
+                              <td className="px-8 py-5">
+                                 <p className="text-sm font-bold text-brand-dark">{h.studentName}</p>
+                              </td>
+                              <td className="px-8 py-5">
+                                 <p className="text-[10px] text-brand-primary font-bold">{h.testTitle}</p>
+                              </td>
+                              <td className="px-8 py-5">
+                                 <span className="text-xs font-medium text-slate-500">{h.evaluatorName || '--'}</span>
+                              </td>
+                              <td className="px-8 py-5">
+                                 <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase ${
+                                   h.status === 'Evaluated' ? 'bg-green-100 text-green-600' : 
+                                   h.status === 'Rejected' ? 'bg-red-100 text-red-600' : 
+                                   h.status === 'Review' ? 'bg-orange-100 text-orange-600' : 'bg-slate-100 text-slate-400'
+                                 }`}>
+                                   {h.status}
+                                 </span>
+                              </td>
+                              <td className="px-8 py-5 text-right">
+                                 {h.evaluatedSheetUrl && (
+                                   <button onClick={() => setViewingPdf({url: h.evaluatedSheetUrl, title: `Final: ${h.studentName}`})} className="p-2 bg-slate-50 text-slate-300 hover:text-brand-primary rounded-xl transition-all"><FileText size={16}/></button>
+                                 )}
+                              </td>
+                           </tr>
+                        ))}
+                    </tbody>
+                </table>
+              </div>
+            )}
+
             {activeTab === 'students' && (
                <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
                  <table className="w-full text-left">
@@ -232,14 +414,41 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ plans, onUpdatePlans, on
                </div>
             )}
 
-            {/* Default Dashboard Stats */}
+            {activeTab === 'bookings' && (
+              <div className="grid grid-cols-1 gap-4">
+                {bookings.map((book) => (
+                  <div key={book.id} className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm flex flex-col md:flex-row justify-between items-center gap-6">
+                    <div className="flex-1 flex items-center gap-4">
+                      <div className="w-12 h-12 bg-brand-primary/10 rounded-2xl flex items-center justify-center text-brand-primary"><Calendar size={24}/></div>
+                      <div>
+                        <h4 className="font-bold text-brand-dark">{book.studentName}</h4>
+                        <p className="text-[10px] text-slate-400 font-bold uppercase">Requested Mentor: {book.mentorName}</p>
+                      </div>
+                    </div>
+                    <div className="flex-1 text-center md:text-left">
+                       <p className="text-sm font-bold text-brand-dark flex items-center justify-center md:justify-start gap-2"><Clock size={14}/> {book.slot} • {book.date}</p>
+                       <p className="text-[10px] text-slate-400 mt-1 italic line-clamp-1">Reason: {book.reason}</p>
+                    </div>
+                    <div className="flex items-center gap-3">
+                       <a href={`tel:${book.studentPhone}`} className="p-3 bg-slate-50 text-brand-dark rounded-xl hover:bg-brand-primary hover:text-white transition-all"><Phone size={18}/></a>
+                       <div className="flex flex-col gap-1">
+                          <button onClick={() => handleBookingStatus(book.id, 'Confirmed')} className={`px-4 py-1.5 rounded-xl text-[10px] font-black uppercase transition-all ${book.status === 'Confirmed' ? 'bg-green-500 text-white' : 'bg-green-50 text-green-600 hover:bg-green-500 hover:text-white'}`}>Confirm</button>
+                          <button onClick={() => handleBookingStatus(book.id, 'Completed')} className="px-4 py-1.5 bg-slate-100 text-slate-500 rounded-xl text-[10px] font-black uppercase hover:bg-slate-200 transition-all">Done</button>
+                       </div>
+                    </div>
+                  </div>
+                ))}
+                {bookings.length === 0 && <div className="text-center py-20 text-slate-300 italic">No mentorship requests available.</div>}
+              </div>
+            )}
+
             {activeTab === 'dashboard' && (
               <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
                   {[
                     { label: 'Registered Students', value: students.length, icon: Users, color: 'text-blue-600', bg: 'bg-blue-50' },
+                    { label: 'Pending Bookings', value: bookings.filter((b:any) => b.status === 'Pending').length, icon: Calendar, color: 'text-brand-orange', bg: 'bg-brand-orange/10' },
                     { label: 'Evaluation Queue', value: submissions.filter((s:any) => s.status === 'Review').length, icon: Gavel, color: 'text-red-600', bg: 'bg-red-50' },
                     { label: 'Verified Teachers', value: teachers.length, icon: GraduationCap, color: 'text-green-600', bg: 'bg-green-50' },
-                    { label: 'Tests Available', value: tests.length, icon: FileText, color: 'text-purple-600', bg: 'bg-purple-50' },
                   ].map((stat, i) => (
                     <div key={i} className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm hover:shadow-md transition-shadow">
                       <div className={`p-3 rounded-2xl ${stat.bg} ${stat.color} w-fit mb-4`}><stat.icon size={22} /></div>
@@ -249,147 +458,144 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ plans, onUpdatePlans, on
                   ))}
               </div>
             )}
-            
-            {/* Library View */}
-            {activeTab === 'library' && (
-               <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {materials.map((m: any) => (
-                     <div key={m.id} className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm flex flex-col group h-full">
-                        <div className="flex justify-between items-start mb-4">
-                           <div className="w-10 h-10 bg-purple-50 text-purple-600 rounded-xl flex items-center justify-center"><BookOpen size={20} /></div>
-                           <span className="text-[8px] font-black uppercase px-2 py-0.5 bg-slate-100 text-slate-500 rounded">{m.type}</span>
-                        </div>
-                        <h4 className="font-bold text-brand-dark mb-1 flex-1">{m.title}</h4>
-                        <p className="text-[10px] text-brand-primary font-bold mb-4">{m.subject}</p>
-                        <div className="flex gap-2">
-                           <button onClick={() => setViewingPdf({ url: m.pdfLink, title: m.title })} className="flex-1 py-2 bg-slate-50 text-brand-dark rounded-xl text-[10px] font-black uppercase hover:bg-brand-primary hover:text-white transition-all">Preview</button>
-                           <button onClick={() => handleDelete('materials', m.id)} className="p-2 text-red-400 hover:bg-red-50 rounded-xl transition-colors"><Trash2 size={16} /></button>
-                        </div>
-                     </div>
-                  ))}
-               </div>
-            )}
           </div>
         )}
 
-        {/* Global Action Button */}
-        {['library', 'tests', 'students'].includes(activeTab) && (
+        {['library', 'tests', 'students', 'teachers'].includes(activeTab) && (
            <button onClick={() => setShowAddModal(true)} className="fixed bottom-10 right-10 w-16 h-16 bg-brand-primary text-white rounded-full shadow-2xl flex items-center justify-center hover:scale-110 transition-transform z-[40]"><Plus size={32}/></button>
         )}
       </main>
 
-      {/* Student Performance Insight Modal */}
-      {selectedStudent && (
+      {selectedTeacher && (
         <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-brand-dark/80 backdrop-blur-md" onClick={() => setSelectedStudent(null)}></div>
-          <div className="relative bg-white w-full max-w-2xl rounded-[3rem] p-8 shadow-2xl animate-fade-up max-h-[90vh] overflow-y-auto">
-            <div className="flex justify-between items-start mb-8">
-              <div>
-                <h3 className="text-2xl font-display font-bold text-brand-dark">{selectedStudent.name}</h3>
-                <p className="text-xs text-brand-primary font-bold uppercase tracking-widest">{selectedStudent.course} • Active Profile</p>
+          <div className="absolute inset-0 bg-brand-dark/80 backdrop-blur-md" onClick={() => setSelectedTeacher(null)}></div>
+          <div className="relative bg-white w-full max-w-4xl rounded-[3rem] p-8 md:p-10 shadow-2xl animate-fade-up max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-start mb-10">
+              <div className="flex items-center gap-4">
+                <div className="w-16 h-16 bg-brand-orange/10 text-brand-orange rounded-2xl flex items-center justify-center"><GraduationCap size={32}/></div>
+                <div>
+                   <h3 className="text-3xl font-display font-bold text-brand-dark">{selectedTeacher.name}</h3>
+                   <p className="text-xs text-brand-orange font-bold uppercase tracking-widest">{selectedTeacher.email} • Lifetime Performance</p>
+                </div>
               </div>
-              <button onClick={() => setSelectedStudent(null)} className="p-2 hover:bg-slate-100 rounded-full transition-colors"><XCircle size={24} className="text-slate-400"/></button>
+              <button onClick={() => setSelectedTeacher(null)} className="p-2 hover:bg-slate-100 rounded-full transition-colors"><XCircle size={24} className="text-slate-400"/></button>
             </div>
 
-            <div className="grid grid-cols-3 gap-4 mb-8 text-center">
-              <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
-                 <p className="text-[10px] font-black text-slate-400 uppercase mb-1">Total Exams</p>
-                 <p className="text-xl font-bold text-brand-dark">{selectedStudent.evaluatedSubmissions.length}</p>
-              </div>
-              <div className="p-4 bg-brand-primary/5 rounded-2xl border border-brand-primary/10">
-                 <p className="text-[10px] font-black text-brand-primary uppercase mb-1">Avg Accuracy</p>
-                 <p className="text-xl font-bold text-brand-primary">
-                    {selectedStudent.evaluatedSubmissions.length > 0 
-                      ? `${Math.round(selectedStudent.evaluatedSubmissions.reduce((acc: number, curr: any) => {
-                          const obtained = parseFloat(curr.marks.split('/')[0]) || 0;
-                          const total = parseFloat(curr.marks.split('/')[1]) || 100;
-                          return acc + (obtained / total * 100);
-                        }, 0) / selectedStudent.evaluatedSubmissions.length)}%`
-                      : 'N/A'}
-                 </p>
-              </div>
-              <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
-                 <p className="text-[10px] font-black text-slate-400 uppercase mb-1">Status</p>
-                 <p className="text-sm font-bold text-brand-dark capitalize">{selectedStudent.planStatus}</p>
-              </div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-10">
+               <div className="p-5 bg-slate-50 rounded-2xl border border-slate-100">
+                  <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Total Checked</p>
+                  <p className="text-2xl font-black text-brand-dark">{selectedTeacher.history.length}</p>
+               </div>
+               <div className="p-5 bg-green-50 rounded-2xl border border-green-100">
+                  <p className="text-[9px] font-black text-green-600 uppercase tracking-widest mb-1">Admin Approved</p>
+                  <p className="text-2xl font-black text-green-600">{selectedTeacher.history.filter((h:any) => h.status === 'Evaluated').length}</p>
+               </div>
+               <div className="p-5 bg-brand-orange/5 rounded-2xl border border-brand-orange/10">
+                  <p className="text-[9px] font-black text-brand-orange uppercase tracking-widest mb-1">Pending Review</p>
+                  <p className="text-2xl font-black text-brand-orange">{selectedTeacher.history.filter((h:any) => h.status === 'Review').length}</p>
+               </div>
+               <div className="p-5 bg-red-50 rounded-2xl border border-red-100">
+                  <p className="text-[9px] font-black text-red-600 uppercase tracking-widest mb-1">Rejected/Corrections</p>
+                  <p className="text-2xl font-black text-red-600">{selectedTeacher.history.filter((h:any) => h.status === 'Rejected').length}</p>
+               </div>
             </div>
 
-            <h4 className="font-bold text-brand-dark mb-4 flex items-center gap-2 px-2"><Target size={16} className="text-brand-orange"/> Checked Sheets History</h4>
-            <div className="space-y-3 px-2">
-              {selectedStudent.evaluatedSubmissions.map((sub: any) => (
-                 <div key={sub.id} className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100 hover:bg-white transition-all">
-                    <div className="flex items-center gap-3">
-                       <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center text-brand-primary shadow-sm border border-slate-100"><FileText size={18}/></div>
-                       <div>
-                          <p className="text-sm font-bold text-brand-dark">{sub.testTitle}</p>
-                          <p className="text-[10px] text-slate-400 font-medium">Evaluated by CA Ranker</p>
-                       </div>
+            <div className="grid md:grid-cols-2 gap-8 mb-10">
+                <div className="bg-brand-dark p-8 rounded-[2rem] text-white">
+                    <div className="flex justify-between items-center mb-8">
+                        <h3 className="font-bold flex items-center gap-2 text-sm"><BarChart3 size={16} className="text-brand-orange"/> Output Velocity</h3>
+                        <span className="text-[9px] font-black opacity-40 uppercase">Daily Record</span>
                     </div>
-                    <div className="text-right">
-                       <p className="text-sm font-black text-brand-primary">{sub.marks}</p>
-                       <button onClick={() => setViewingPdf({url: sub.evaluatedSheetUrl, title: sub.testTitle})} className="text-[9px] font-black uppercase text-brand-primary/60 hover:text-brand-primary mt-1">Check Feedback</button>
+                    <div className="space-y-4">
+                        {(() => {
+                           const dateMap: Record<string, number> = {};
+                           selectedTeacher.history.forEach((s: any) => {
+                             if(s.evaluatedAt) {
+                               const date = new Date(s.evaluatedAt).toLocaleDateString();
+                               dateMap[date] = (dateMap[date] || 0) + 1;
+                             }
+                           });
+                           const sortedDays = Object.entries(dateMap).sort((a,b) => new Date(b[0]).getTime() - new Date(a[0]).getTime()).slice(0, 5);
+                           if(sortedDays.length === 0) return <p className="text-center py-6 opacity-30 italic text-xs">No activity record found.</p>;
+                           return sortedDays.map(([date, count], i) => (
+                             <div key={i} className="space-y-1.5">
+                               <div className="flex justify-between text-[10px] font-bold">
+                                 <span>{date}</span>
+                                 <span className="text-brand-orange">{count} Copies</span>
+                               </div>
+                               <div className="w-full h-1.5 bg-white/5 rounded-full overflow-hidden">
+                                 <div className="h-full bg-brand-orange rounded-full" style={{ width: `${Math.min(100, (count/20)*100)}%` }}></div>
+                               </div>
+                             </div>
+                           ));
+                        })()}
                     </div>
-                 </div>
-              ))}
-              {selectedStudent.evaluatedSubmissions.length === 0 && <div className="text-center py-10 text-slate-300 italic text-sm">No evaluation records found.</div>}
+                </div>
+
+                <div className="bg-white p-8 rounded-[2rem] border border-slate-100 shadow-sm flex flex-col items-center justify-center text-center">
+                    <div className="relative w-24 h-24 mb-4 flex items-center justify-center">
+                        <svg className="w-full h-full transform -rotate-90" viewBox="0 0 36 36">
+                           <circle cx="18" cy="18" r="16" fill="none" className="stroke-slate-100" strokeWidth="3" />
+                           <circle cx="18" cy="18" r="16" fill="none" className="stroke-brand-orange" strokeWidth="3" strokeDasharray={`${selectedTeacher.history.length > 0 ? (selectedTeacher.history.filter((h:any)=>h.status==='Evaluated').length / selectedTeacher.history.length) * 100 : 0}, 100`} strokeLinecap="round" />
+                        </svg>
+                        <span className="absolute text-sm font-black text-brand-dark">{selectedTeacher.history.length > 0 ? Math.round((selectedTeacher.history.filter((h:any)=>h.status==='Evaluated').length / selectedTeacher.history.length) * 100) : 0}%</span>
+                    </div>
+                    <h4 className="font-bold text-sm text-brand-dark">Quality Score</h4>
+                    <p className="text-[10px] text-slate-400 mt-1">Based on Admin approvals</p>
+                </div>
+            </div>
+
+            <div className="space-y-4">
+               <h4 className="font-bold text-brand-dark flex items-center gap-2 px-2"><HistoryIcon className="text-brand-orange" size={18}/> Detailed Evaluation Archive</h4>
+               <div className="bg-white border border-slate-100 rounded-3xl overflow-hidden shadow-sm">
+                  <table className="w-full text-left">
+                     <thead className="bg-slate-50">
+                        <tr className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
+                           <th className="px-6 py-4">Student & Paper</th>
+                           <th className="px-6 py-4">Status</th>
+                           <th className="px-6 py-4">Marks</th>
+                           <th className="px-6 py-4 text-right">Preview</th>
+                        </tr>
+                     </thead>
+                     <tbody className="divide-y divide-slate-50">
+                        {selectedTeacher.history.map((h:any) => (
+                           <tr key={h.id} className="hover:bg-slate-50/50">
+                              <td className="px-6 py-4">
+                                 <p className="text-sm font-bold text-brand-dark">{h.studentName}</p>
+                                 <p className="text-[10px] text-slate-400 font-bold">{h.testTitle}</p>
+                              </td>
+                              <td className="px-6 py-4">
+                                 <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase ${h.status === 'Evaluated' ? 'bg-green-100 text-green-600' : h.status === 'Rejected' ? 'bg-red-100 text-red-600' : 'bg-orange-100 text-brand-orange'}`}>{h.status}</span>
+                              </td>
+                              <td className="px-6 py-4 font-black text-brand-dark text-sm">{h.marks}</td>
+                              <td className="px-6 py-4 text-right">
+                                 <button onClick={() => setViewingPdf({ url: h.evaluatedSheetUrl, title: `Evaluated: ${h.studentName}` })} className="p-2 text-slate-300 hover:text-brand-orange transition-colors"><FileText size={16}/></button>
+                              </td>
+                           </tr>
+                        ))}
+                     </tbody>
+                  </table>
+               </div>
             </div>
           </div>
         </div>
       )}
 
-      {/* Add Entry Modal Logic remains same but styled for consistency */}
       {showAddModal && (
-         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-            <div className="absolute inset-0 bg-brand-dark/60 backdrop-blur-sm" onClick={() => setShowAddModal(false)}></div>
-            <div className="relative bg-white w-full max-w-lg rounded-[2.5rem] p-8 shadow-2xl animate-fade-up">
-               <h3 className="text-2xl font-display font-bold text-brand-dark mb-6">Create New Record</h3>
-               <form onSubmit={handleAddEntry} className="space-y-4">
-                  {['tests', 'library'].includes(activeTab) ? (
-                     <>
-                        <div className="grid grid-cols-2 gap-4">
-                           <div className="space-y-1">
-                              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Level</label>
-                              <select className="w-full p-3 bg-slate-50 border border-slate-100 rounded-xl text-sm font-bold" value={newEntry.level} onChange={e => handleLevelChange(e.target.value)}>
-                                 <option>CA Final</option><option>CA Inter</option><option>CA Foundation</option>
-                              </select>
-                           </div>
-                           <div className="space-y-1">
-                              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Access</label>
-                              <select className="w-full p-3 bg-slate-50 border border-slate-100 rounded-xl text-sm font-bold" value={newEntry.accessType} onChange={e => setNewEntry({...newEntry, accessType: e.target.value})}>
-                                 <option value="Premium">Premium</option><option value="Free">Free (Trial)</option>
-                              </select>
-                           </div>
-                        </div>
-                        <div className="space-y-1">
-                           <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Subject</label>
-                           <select className="w-full p-3 bg-slate-50 border border-slate-100 rounded-xl text-sm font-bold" value={newEntry.subject} onChange={e => setNewEntry({...newEntry, subject: e.target.value})}>
-                              {LEVEL_SUBJECTS[newEntry.level].map((subj, i) => <option key={i} value={subj}>{subj}</option>)}
-                           </select>
-                        </div>
-                        <div className="space-y-1">
-                           <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Title</label>
-                           <input placeholder="e.g. Audit Full Syllabus" className="w-full p-3 bg-slate-50 border border-slate-100 rounded-xl text-sm font-bold outline-none" required value={newEntry.title} onChange={e => setNewEntry({...newEntry, title: e.target.value})} />
-                        </div>
-                        <div className="space-y-2">
-                           <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">PDF Document</label>
-                           <div className="relative border-2 border-dashed border-slate-200 rounded-xl p-6 flex flex-col items-center justify-center gap-2 hover:border-brand-primary transition-colors cursor-pointer group">
-                              <input type="file" accept="application/pdf" className="absolute inset-0 opacity-0 cursor-pointer" onChange={e => setSelectedFile(e.target.files?.[0] || null)} />
-                              <Upload className="text-slate-300 group-hover:text-brand-primary" size={32} />
-                              <span className="text-xs font-bold text-slate-500">{selectedFile ? selectedFile.name : 'Select or Drop PDF'}</span>
-                           </div>
-                        </div>
-                        <Button type="submit" fullWidth disabled={isProcessing}>{isProcessing ? <Loader2 className="animate-spin" /> : 'Confirm & Save'}</Button>
-                     </>
-                  ) : (
-                     <>
-                        <input placeholder="Full Name" className="w-full p-3 bg-slate-50 border border-slate-100 rounded-xl text-sm font-bold outline-none" required onChange={e => setNewEntry({...newEntry, name: e.target.value})} />
-                        <input placeholder="Email" type="email" className="w-full p-3 bg-slate-50 border border-slate-100 rounded-xl text-sm font-bold outline-none" required onChange={e => setNewEntry({...newEntry, email: e.target.value})} />
-                        <Button type="submit" fullWidth disabled={isProcessing}>Enroll Student</Button>
-                     </>
-                  )}
-               </form>
-            </div>
-         </div>
+        <div className="fixed inset-0 z-[120] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-brand-dark/90 backdrop-blur-lg" onClick={() => !isProcessing && setShowAddModal(false)}></div>
+          <div className="relative bg-white w-full max-w-xl rounded-[2.5rem] p-8 md:p-10 shadow-2xl animate-fade-up">
+            <h3 className="text-2xl font-display font-bold text-brand-dark mb-6">Create New {activeTab.slice(0, -1)}</h3>
+            <form onSubmit={handleAddEntry} className="space-y-4">
+               <div className="flex gap-4 mt-8">
+                 <Button variant="outline" type="button" fullWidth onClick={() => setShowAddModal(false)}>Cancel</Button>
+                 <Button variant="primary" type="submit" fullWidth disabled={isProcessing}>
+                    {isProcessing ? <Loader2 className="animate-spin" /> : 'Confirm & Add'}
+                 </Button>
+               </div>
+            </form>
+          </div>
+        </div>
       )}
     </div>
   );

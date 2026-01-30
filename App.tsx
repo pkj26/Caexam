@@ -84,8 +84,8 @@ const App: React.FC = () => {
     if (adminAuth === 'true') setIsAdminLoggedIn(true);
     const teacherAuth = localStorage.getItem('teacher_auth');
     if (teacherAuth === 'true') setIsTeacherLoggedIn(true);
-    const studentEmail = localStorage.getItem('student_email');
-    if (studentEmail) setIsStudentLoggedIn(true);
+    const studentPhone = localStorage.getItem('student_phone');
+    if (studentPhone) setIsStudentLoggedIn(true);
   }, []);
 
   useEffect(() => {
@@ -126,6 +126,13 @@ const App: React.FC = () => {
     window.scrollTo(0, 0);
   };
 
+  const handleStudentLogout = () => {
+    setIsStudentLoggedIn(false);
+    localStorage.removeItem('student_phone');
+    localStorage.removeItem('student_name');
+    navigate('home');
+  };
+
   const isDashboardView = ['admin-panel', 'admin-login', 'teacher-panel', 'teacher-login', 'student-dashboard'].includes(view);
 
   return (
@@ -157,7 +164,7 @@ const App: React.FC = () => {
         ) : view === 'student-login' ? (
           <StudentLogin onLoginSuccess={() => { setIsStudentLoggedIn(true); navigate('student-dashboard'); }} onBack={() => navigate('home')} />
         ) : view === 'student-dashboard' ? (
-          <StudentDashboard onLogout={() => { setIsStudentLoggedIn(false); localStorage.removeItem('student_email'); navigate('home'); }} />
+          <StudentDashboard onLogout={handleStudentLogout} />
         ) : (
           <DetailedPages view={view} topic={selectedTopic} onBack={() => navigate('home')} onNavigate={navigate} onAddToCart={(item) => setCart([...cart, item])} />
         )}

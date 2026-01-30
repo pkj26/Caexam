@@ -4,12 +4,12 @@ import {
   Settings, LogOut, Bell, Search, TrendingUp,
   FileText, Download, Upload, Flame, Award, 
   Menu, X, Lock, Eye, Book, Library, Star, AlertCircle, CheckCircle2, Loader2,
-  Database, Zap, ArrowUpRight, Target, BarChart3
+  Database, Zap, ArrowUpRight, Target, BarChart3, Calendar, Clock, UserCheck, MessageSquare
 } from 'lucide-react';
 import { 
-  db, auth, storage, onAuthStateChanged,
+  db, storage,
   collection, query, where, orderBy, doc, getDoc, addDoc, onSnapshot,
-  ref, uploadBytes, getDownloadURL
+  ref, uploadBytes, getDownloadURL, serverTimestamp
 } from '../firebaseConfig';
 import { PDFViewer } from './PDFViewer';
 import { Button } from './Button';
@@ -28,70 +28,137 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ onLogout }) 
   const [availableTests, setAvailableTests] = useState<any[]>([]);
   const [libraryMaterials, setLibraryMaterials] = useState<any[]>([]); 
   const [submissions, setSubmissions] = useState<any[]>([]);
+  const [bookings, setBookings] = useState<any[]>([]);
   const [studentProfile, setStudentProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [uploadingTestId, setUploadingTestId] = useState<string | null>(null);
 
+  // Mentorship Booking State
+  const [selectedMentor, setSelectedMentor] = useState<any | null>(null);
+  const [selectedDate, setSelectedDate] = useState<string>('');
+  const [selectedSlot, setSelectedSlot] = useState<string>('');
+  const [bookingReason, setBookingReason] = useState<string>('');
+  const [isBooking, setIsBooking] = useState(false);
+
   useEffect(() => {
-    let unsubTests: () => void;
-    let unsubMaterials: () => void;
-    let unsubSubmissions: () => void;
-    let unsubProfile: () => void;
+    const studentPhone = localStorage.getItem('student_phone');
+    if (!studentPhone) {
+      onLogout();
+      return;
+    }
 
-    const unsubscribeAuth = onAuthStateChanged(auth, async (user: any) => {
-      setLoading(true);
-      if (!user) {
-        setLoading(false);
-        return;
-      }
+    let unsubTests: (() => void) | undefined;
+    let unsubMaterials: (() => void) | undefined;
+    let unsubSubmissions: (() => void) | undefined;
+    let unsubProfile: (() => void) | undefined;
+    let unsubBookings: (() => void) | undefined;
 
-      try {
-        const docRef = doc(db, "students", user.uid);
-        unsubProfile = onSnapshot(docRef, (docSnap) => {
-          if (docSnap.exists()) {
-            setStudentProfile(docSnap.data());
-          } else {
-            onLogout();
-          }
-        });
+    // 1. Profile Listener
+    const docRef = doc(db, "students", studentPhone);
+    unsubProfile = onSnapshot(docRef, (docSnap) => {
+      if (docSnap.exists()) {
+        const profile = docSnap.data();
+        setStudentProfile({ ...profile, id: studentPhone });
+        
+        const currentCourse = profile.course || 'CA Final';
 
+        // 2. Tests Listener - Sorting on client side to avoid Index requirement
         const testsRef = collection(db, "tests");
-        const qTests = query(testsRef, orderBy("date", "desc"));
+        const qTests = query(testsRef, where("level", "==", currentCourse));
         unsubTests = onSnapshot(qTests, (snapshot) => {
-          const allTests = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-          const currentCourse = studentProfile?.course || 'CA Final'; 
-          setAvailableTests(allTests.filter((t: any) => t.level === currentCourse));
+          const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+          data.sort((a, b) => new Date(b.date || 0).getTime() - new Date(a.date || 0).getTime());
+          setAvailableTests(data);
         });
 
+        // 3. Materials Listener
         const materialsRef = collection(db, "materials");
         const qMaterials = query(materialsRef, orderBy("date", "desc"));
         unsubMaterials = onSnapshot(qMaterials, (snapshot) => {
           setLibraryMaterials(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
         });
 
+        // 4. Submissions Listener - Sorting on client side to avoid Index requirement
         const subRef = collection(db, "submissions");
-        const qSub = query(subRef, where("studentId", "==", user.uid), orderBy("submittedAt", "desc"));
+        const qSub = query(subRef, where("studentId", "==", studentPhone));
         unsubSubmissions = onSnapshot(qSub, (snapshot) => {
-          setSubmissions(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+          const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+          data.sort((a, b) => new Date(b.submittedAt || 0).getTime() - new Date(a.submittedAt || 0).getTime());
+          setSubmissions(data);
           setLoading(false);
         });
 
-      } catch (error: any) {
-        console.error("Dashboard error:", error);
-        setLoading(false);
+        // 5. Bookings Listener - Sorting on client side to avoid Index requirement
+        const bookRef = collection(db, "bookings");
+        const qBook = query(bookRef, where("studentId", "==", studentPhone));
+        unsubBookings = onSnapshot(qBook, (snapshot) => {
+          const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+          data.sort((a, b) => new Date(b.requestedAt || 0).getTime() - new Date(a.requestedAt || 0).getTime());
+          setBookings(data);
+        });
+      } else {
+        onLogout();
       }
+    }, (error) => {
+      console.error("Profile Snapshot error:", error);
+      setLoading(false);
     });
 
     return () => {
-      unsubscribeAuth();
       if (unsubTests) unsubTests();
       if (unsubMaterials) unsubMaterials();
       if (unsubSubmissions) unsubSubmissions();
       if (unsubProfile) unsubProfile();
+      if (unsubBookings) unsubBookings();
     };
-  }, [onLogout, studentProfile?.course]); 
+  }, [onLogout]); 
 
-  // --- Analytics Processing ---
+  const mentors = [
+    { id: 'm1', name: "CA Rohit Sethi", rank: "AIR 14", spec: "Audit & Law", img: "https://i.pravatar.cc/150?img=11" },
+    { id: 'm2', name: "CA Neha Gupta", rank: "AIR 08", spec: "Taxation", img: "https://i.pravatar.cc/150?img=26" },
+    { id: 'm3', name: "CA Ishan Vyas", rank: "AIR 21", spec: "Costing & FM", img: "https://i.pravatar.cc/150?img=12" },
+  ];
+
+  const handleBookSession = async () => {
+    if (!studentProfile) {
+      alert("Please wait while we sync your profile...");
+      return;
+    }
+
+    if (!selectedMentor || !selectedDate || !selectedSlot) {
+      alert("Please select mentor, date and time slot.");
+      return;
+    }
+
+    setIsBooking(true);
+    try {
+      const bookingData = {
+        studentId: studentProfile.id,
+        studentName: studentProfile.name || "Anonymous Student",
+        studentPhone: studentProfile.phone || "N/A",
+        mentorId: selectedMentor.id,
+        mentorName: selectedMentor.name,
+        date: selectedDate,
+        slot: selectedSlot,
+        reason: bookingReason || "General doubt solving",
+        status: 'Pending',
+        requestedAt: new Date().toISOString()
+      };
+
+      await addDoc(collection(db, "bookings"), bookingData);
+      alert("Booking Request Sent Successfully! A mentor will confirm shortly.");
+      
+      setSelectedMentor(null);
+      setSelectedDate('');
+      setSelectedSlot('');
+      setBookingReason('');
+    } catch (e: any) {
+      alert("Booking failed: " + e.message);
+    } finally {
+      setIsBooking(false);
+    }
+  };
+
   const evaluatedSubmissions = submissions.filter(s => s.status === 'Evaluated' && s.marks);
   
   const parseMarks = (marksStr: string): { obtained: number, total: number, percent: number } => {
@@ -141,12 +208,12 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ onLogout }) 
     if (!file || !studentProfile) return;
     setUploadingTestId(test.id);
     try {
-      const storageRef = ref(storage, `answers/${auth.currentUser?.uid}/${Date.now()}_${file.name}`);
+      const storageRef = ref(storage, `answers/${studentProfile.id}/${Date.now()}_${file.name}`);
       const snapshot = await uploadBytes(storageRef, file);
       const url = await getDownloadURL(snapshot.ref);
       
       await addDoc(collection(db, "submissions"), {
-        studentId: auth.currentUser?.uid,
+        studentId: studentProfile.id,
         studentName: studentProfile.name,
         testId: test.id,
         testTitle: test.title,
@@ -154,7 +221,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ onLogout }) 
         answerSheetUrl: url,
         status: 'Pending'
       });
-      alert("Submission successful! Evaluation takes 24-48 hours.");
+      alert("Paper Uploaded! Expect evaluation in 24-48 hours.");
     } catch (e: any) {
       alert(`Upload Failed: ${e.message}`);
     } finally {
@@ -162,253 +229,414 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ onLogout }) 
     }
   };
 
-  const isPlanActive = studentProfile?.planStatus === 'Active' && new Date(studentProfile?.expiryDate || '2099-01-01') > new Date();
-  const userNameDisplay = studentProfile?.name || "Student";
-
-  const SidebarItem = ({ id, icon: Icon, label }: { id: TabType, icon: any, label: string }) => (
+  const NavItem = ({ id, icon: Icon, label }: { id: TabType, icon: any, label: string }) => (
     <button 
       onClick={() => { setActiveTab(id); setIsMobileSidebarOpen(false); }}
-      className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold text-sm transition-all ${activeTab === id ? 'bg-brand-primary text-white shadow-lg' : 'text-white/60 hover:bg-white/10 hover:text-white'}`}
+      className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold text-sm transition-all ${activeTab === id ? 'bg-brand-primary text-white shadow-lg shadow-brand-primary/20' : 'text-slate-400 hover:bg-slate-50 hover:text-brand-primary'}`}
     >
       <Icon size={18} /> {label}
     </button>
   );
 
+  if (loading) return (
+    <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center gap-4">
+      <Loader2 className="animate-spin text-brand-primary" size={40} />
+      <p className="font-bold text-slate-400">Loading Student Portal...</p>
+    </div>
+  );
+
   return (
-    <div className="min-h-screen bg-brand-cream flex font-sans">
+    <div className="min-h-screen bg-slate-50 flex flex-col lg:flex-row font-sans text-brand-dark">
       {viewingPdf && <PDFViewer url={viewingPdf.url} title={viewingPdf.title} onClose={() => setViewingPdf(null)} />}
-      
-      {/* Sidebar logic remains same for desktop/mobile */}
-      <aside className="hidden lg:flex w-72 bg-brand-dark p-6 flex-col gap-8 shrink-0 min-h-screen sticky top-0 overflow-y-auto">
-        <div className="flex items-center gap-3 px-2">
+
+      {/* Desktop Sidebar */}
+      <aside className="hidden lg:flex w-72 bg-white border-r border-slate-100 p-8 flex-col shrink-0 sticky top-0 h-screen">
+        <div className="flex items-center gap-3 mb-12">
           <div className="w-10 h-10 bg-brand-primary rounded-xl flex items-center justify-center text-white font-black text-xl shadow-lg">CA</div>
-          <div>
-            <h1 className="text-white font-display font-bold leading-tight tracking-tighter">exam<span className="text-brand-primary">.online</span></h1>
-            <p className="text-brand-primary text-[10px] font-black uppercase tracking-widest">Student Portal</p>
-          </div>
+          <h1 className="font-display font-bold text-xl tracking-tighter">exam<span className="text-brand-primary">.online</span></h1>
         </div>
+        
         <nav className="flex-1 space-y-2">
-          <SidebarItem id="overview" icon={LayoutDashboard} label="Dashboard" />
-          <SidebarItem id="tests" icon={BookOpen} label="My Test Series" />
-          <SidebarItem id="results" icon={TrendingUp} label="Analytics & Results" />
-          <SidebarItem id="resources" icon={Library} label="Material Library" />
-          <SidebarItem id="mentorship" icon={GraduationCap} label="Mentorship" />
+          <NavItem id="overview" icon={LayoutDashboard} label="Dashboard" />
+          <NavItem id="tests" icon={ClipboardCheck} label="Test Series" />
+          <NavItem id="results" icon={TrendingUp} label="Evaluation Results" />
+          <NavItem id="mentorship" icon={GraduationCap} label="Mentorship Call" />
+          <NavItem id="resources" icon={Library} label="Study Resources" />
         </nav>
-        <button onClick={onLogout} className="w-full flex items-center gap-3 px-4 py-3 rounded-xl bg-red-500/10 text-red-400 hover:bg-red-500 hover:text-white transition-all text-sm font-bold">
-          <LogOut size={18} /> Logout
-        </button>
+
+        <div className="pt-8 border-t border-slate-100">
+          <div className="bg-slate-50 rounded-2xl p-4 mb-4">
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Your Course</p>
+            <p className="text-xs font-bold text-brand-dark">{studentProfile?.course || 'Not Set'}</p>
+          </div>
+          <button onClick={onLogout} className="w-full flex items-center gap-3 px-4 py-3 text-slate-400 font-bold text-sm hover:text-red-500 hover:bg-red-50 rounded-xl transition-all">
+            <LogOut size={18} /> Logout Portal
+          </button>
+        </div>
       </aside>
 
-      <main className="flex-1 p-4 lg:p-10 min-h-screen overflow-x-hidden">
-        <div className="max-w-7xl mx-auto">
-          {loading ? (
-             <div className="flex flex-col items-center justify-center h-[60vh] text-brand-dark/50 font-bold gap-4">
-               <Loader2 className="animate-spin" size={40} />
-               <p>Syncing Performance Data...</p>
+      {/* Mobile Header */}
+      <div className="lg:hidden bg-white px-4 py-3 flex items-center justify-between border-b border-slate-100 sticky top-0 z-40">
+        <div className="flex items-center gap-2">
+           <div className="w-8 h-8 bg-brand-primary rounded-lg flex items-center justify-center text-white font-black text-lg">CA</div>
+           <span className="font-display font-bold text-brand-dark">exam.online</span>
+        </div>
+        <button onClick={() => setIsMobileSidebarOpen(true)} className="p-2 text-slate-400"><Menu size={24} /></button>
+      </div>
+
+      {/* Mobile Sidebar Overlay */}
+      {isMobileSidebarOpen && (
+        <div className="fixed inset-0 z-50 lg:hidden">
+          <div className="absolute inset-0 bg-brand-dark/60 backdrop-blur-sm" onClick={() => setIsMobileSidebarOpen(false)}></div>
+          <div className="absolute right-0 top-0 bottom-0 w-64 bg-white p-6 flex flex-col animate-slide-in">
+             <div className="flex justify-end mb-8"><button onClick={() => setIsMobileSidebarOpen(false)}><X size={24}/></button></div>
+             <nav className="flex-1 space-y-1">
+                <NavItem id="overview" icon={LayoutDashboard} label="Overview" />
+                <NavItem id="tests" icon={ClipboardCheck} label="Tests" />
+                <NavItem id="results" icon={TrendingUp} label="Results" />
+                <NavItem id="mentorship" icon={GraduationCap} label="Mentorship" />
+                <NavItem id="resources" icon={Library} label="Resources" />
+             </nav>
+             <button onClick={onLogout} className="flex items-center gap-3 px-4 py-3 text-red-500 font-bold text-sm mt-auto"><LogOut size={18} /> Logout</button>
+          </div>
+        </div>
+      )}
+
+      {/* Main Content Area */}
+      <main className="flex-1 p-4 lg:p-10 max-w-7xl mx-auto w-full">
+        {/* Top Action Bar */}
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-10">
+          <div>
+             <h2 className="text-2xl lg:text-3xl font-display font-bold text-brand-dark">Hello, {studentProfile?.name?.split(' ')[0] || 'Aspirant'} 👋</h2>
+             <p className="text-slate-400 text-sm font-bold mt-1">Goal: <span className="text-brand-primary uppercase">Chartered Accountant</span> • AIR Focus</p>
+          </div>
+          <div className="flex items-center gap-3">
+             <div className="hidden sm:flex items-center gap-2 px-4 py-2 bg-white border border-slate-100 rounded-xl shadow-sm">
+                <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Active Plan: <span className="text-brand-dark">{studentProfile?.plan || 'Free'}</span></span>
              </div>
-          ) : (
-            <>
-              <header className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-10 gap-4">
-                <div className="flex items-center gap-4">
-                  <button onClick={() => setIsMobileSidebarOpen(true)} className="lg:hidden p-2 bg-white rounded-xl shadow-sm"><Menu size={20}/></button>
-                  <div>
-                    <div className="flex items-center gap-2 mb-1">
-                      <p className="text-brand-primary text-[10px] font-black uppercase tracking-widest">Performance Insights</p>
-                      <span className="bg-green-100 text-green-600 px-2 py-0.5 rounded text-[10px] font-bold flex items-center gap-1"><Database size={10} /> Real-time Analytics</span>
-                    </div>
-                    <h2 className="text-3xl font-display font-bold text-brand-dark capitalize">{activeTab === 'results' ? 'Progress Center' : activeTab}</h2>
-                  </div>
-                </div>
-              </header>
+             <button className="p-3 bg-white border border-slate-100 text-slate-400 rounded-xl hover:text-brand-primary transition-all shadow-sm"><Bell size={20}/></button>
+          </div>
+        </div>
 
-              {activeTab === 'overview' && (
-                <div className="space-y-8 animate-fade-up">
-                  <div className="relative bg-brand-dark rounded-[2.5rem] p-8 md:p-12 text-white overflow-hidden shadow-2xl">
-                     <div className="absolute top-0 right-0 w-64 h-64 bg-brand-primary rounded-full blur-[100px] opacity-30 -translate-y-1/2 translate-x-1/3"></div>
-                     <div className="relative z-10 max-w-2xl">
-                       <h2 className="text-3xl md:text-5xl font-display font-bold mb-4">Focus, {userNameDisplay.split(' ')[0]}! 🎯</h2>
-                       <p className="text-white/60 text-lg">You have <span className="text-brand-orange font-bold">{evaluatedSubmissions.length}</span> evaluated sheets. Average marks: <span className="text-brand-primary font-bold">{stats ? `${Math.round(stats.averagePercent)}%` : 'TBD'}</span>.</p>
-                       <div className="flex gap-4 mt-8">
-                        <Button variant="primary" onClick={() => setActiveTab('tests')}>Continue Practice</Button>
-                        <Button variant="outline" className="text-white border-white/20" onClick={() => setActiveTab('results')}>View Insights</Button>
+        <div className="animate-fade-up">
+          {activeTab === 'overview' && (
+            <div className="space-y-8">
+              {/* Analytics Header */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                 <div className="bg-brand-primary p-6 rounded-[2rem] text-white shadow-xl shadow-brand-primary/20 relative overflow-hidden group">
+                    <div className="absolute -bottom-6 -right-6 opacity-10 group-hover:scale-110 transition-transform"><Target size={120} /></div>
+                    <p className="text-[10px] font-black uppercase opacity-60 tracking-widest mb-4">Overall Performance</p>
+                    <h3 className="text-4xl font-display font-black mb-2">{stats ? Math.round(stats.averagePercent) : 0}%</h3>
+                    <p className="text-xs opacity-80 flex items-center gap-1"><Zap size={12} className="fill-white"/> {stats?.totalEvaluated || 0} Papers Evaluated</p>
+                 </div>
+                 
+                 <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm">
+                    <div className="flex justify-between items-center mb-6">
+                       <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Accuracy Graph</span>
+                       <TrendingUp size={16} className="text-green-500" />
+                    </div>
+                    <div className="flex items-end gap-2 h-20">
+                       {stats?.recentScores.map((score, i) => (
+                         <div key={i} className="flex-1 bg-brand-primary/10 rounded-t-lg transition-all hover:bg-brand-primary group relative" style={{ height: `${score}%` }}>
+                            <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-brand-dark text-white text-[9px] font-bold px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">{Math.round(score)}%</div>
+                         </div>
+                       ))}
+                       {(!stats || stats.recentScores.length === 0) && <p className="text-[10px] text-slate-300 italic w-full text-center pb-4">No data yet.</p>}
+                    </div>
+                 </div>
+
+                 <div className="bg-brand-dark p-6 rounded-[2rem] text-white flex flex-col justify-between">
+                    <div className="flex justify-between items-start">
+                       <div>
+                          <p className="text-[10px] font-black opacity-40 uppercase tracking-widest">Next Target</p>
+                          <h4 className="font-bold text-sm mt-1">Review Audit Notes</h4>
                        </div>
-                     </div>
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                    <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm"><h3 className="text-2xl font-bold text-brand-dark">{availableTests.length}</h3><p className="text-[10px] font-black uppercase text-slate-400">Target Tests</p></div>
-                    <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm text-brand-primary"><h3 className="text-2xl font-bold">{evaluatedSubmissions.length}</h3><p className="text-[10px] font-black uppercase text-slate-400">Checked Papers</p></div>
-                    <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm text-brand-orange"><h3 className="text-2xl font-bold">{stats ? `${Math.round(stats.averagePercent)}%` : '0%'}</h3><p className="text-[10px] font-black uppercase text-slate-400">Avg Efficiency</p></div>
-                    <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm text-green-600"><h3 className="text-2xl font-bold">{submissions.filter(s => s.status === 'Pending').length}</h3><p className="text-[10px] font-black uppercase text-slate-400">In Evaluation</p></div>
-                  </div>
-                </div>
-              )}
-
-              {activeTab === 'results' && (
-                <div className="space-y-8 animate-fade-up">
-                  {stats ? (
-                    <div className="grid lg:grid-cols-2 gap-8">
-                      {/* Score Trend Card */}
-                      <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm flex flex-col h-full">
-                         <div className="flex justify-between items-center mb-10">
-                            <h3 className="text-lg font-bold text-brand-dark flex items-center gap-2"><TrendingUp size={18} className="text-brand-primary"/> Score Progression</h3>
-                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Last 5 Tests</span>
-                         </div>
-                         <div className="flex-1 flex items-end justify-between gap-4 px-2 min-h-[200px]">
-                            {stats.recentScores.map((score, i) => (
-                              <div key={i} className="flex-1 flex flex-col items-center gap-3">
-                                <div className="w-full bg-slate-50 rounded-2xl relative overflow-hidden" style={{ height: '160px' }}>
-                                  <div 
-                                    className="absolute bottom-0 w-full bg-brand-primary rounded-xl transition-all duration-1000 ease-out shadow-lg" 
-                                    style={{ height: `${score}%` }}
-                                  >
-                                    <div className="absolute top-2 left-1/2 -translate-x-1/2 text-[9px] font-black text-white">
-                                      {Math.round(score)}%
-                                    </div>
-                                  </div>
-                                </div>
-                                <span className="text-[10px] font-bold text-slate-400">Test {i+1}</span>
-                              </div>
-                            ))}
-                         </div>
-                      </div>
-
-                      {/* Subject Performance Matrix */}
-                      <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm flex flex-col h-full">
-                         <div className="flex justify-between items-center mb-8">
-                            <h3 className="text-lg font-bold text-brand-dark flex items-center gap-2"><Target size={18} className="text-brand-orange"/> Subject Mastery</h3>
-                            <div className="flex gap-2">
-                               <div className="flex items-center gap-1 text-[8px] font-bold uppercase"><div className="w-2 h-2 rounded-full bg-green-500"></div> Exam Ready</div>
-                               <div className="flex items-center gap-1 text-[8px] font-bold uppercase"><div className="w-2 h-2 rounded-full bg-red-400"></div> Needs Focus</div>
-                            </div>
-                         </div>
-                         <div className="space-y-5">
-                            {stats.subjectStats.map((subj, i) => (
-                              <div key={i} className="space-y-2">
-                                 <div className="flex justify-between text-[11px] font-bold">
-                                    <span className="text-brand-dark">{subj.name}</span>
-                                    <span className={subj.avg >= 50 ? 'text-green-500' : 'text-red-500'}>{Math.round(subj.avg)}%</span>
-                                 </div>
-                                 <div className="w-full h-3 bg-slate-100 rounded-full overflow-hidden">
-                                    <div 
-                                      className={`h-full transition-all duration-1000 rounded-full ${subj.avg >= 60 ? 'bg-green-500' : subj.avg >= 40 ? 'bg-brand-primary' : 'bg-red-400'}`} 
-                                      style={{ width: `${subj.avg}%` }}
-                                    ></div>
-                                 </div>
-                              </div>
-                            ))}
-                         </div>
-                      </div>
+                       <div className="w-8 h-8 bg-white/10 rounded-lg flex items-center justify-center text-brand-orange"><Flame size={18}/></div>
                     </div>
-                  ) : (
-                    <div className="flex flex-col items-center justify-center py-20 bg-white rounded-[2.5rem] border border-slate-100 text-center px-6">
-                       <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center text-slate-300 mb-6"><BarChart3 size={40} /></div>
-                       <h3 className="text-xl font-bold text-brand-dark">Detailed Analytics Pending</h3>
-                       <p className="text-slate-400 text-sm max-w-xs mt-2">Evaluation metrics appear here once your first test is checked by our AIR Rankers.</p>
-                       <Button onClick={() => setActiveTab('tests')} className="mt-6">Start a Test</Button>
-                    </div>
-                  )}
-
-                  {/* Enhanced Evaluation Table */}
-                  <div className="bg-white rounded-[2.5rem] border border-slate-100 shadow-sm overflow-hidden">
-                     <div className="p-8 border-b border-slate-50 flex justify-between items-center">
-                        <h3 className="text-xl font-bold text-brand-dark">Submission History</h3>
-                        <div className="flex gap-4">
-                           <div className="text-center px-4 border-r border-slate-100"><p className="text-[8px] font-black text-slate-400 uppercase">Submissions</p><p className="text-sm font-bold text-brand-dark">{submissions.length}</p></div>
-                           <div className="text-center"><p className="text-[8px] font-black text-slate-400 uppercase">Checked</p><p className="text-sm font-bold text-brand-primary">{evaluatedSubmissions.length}</p></div>
-                        </div>
-                     </div>
-                     <table className="w-full text-left">
-                        <thead className="bg-slate-50">
-                           <tr className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                              <th className="px-8 py-4">Test Description</th>
-                              <th className="px-8 py-4">Status</th>
-                              <th className="px-8 py-4">Score</th>
-                              <th className="px-8 py-4 text-right">Documents</th>
-                           </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-50">
-                           {submissions.map((sub) => {
-                             const isEvaluated = sub.status === 'Evaluated';
-                             return (
-                               <tr key={sub.id} className="hover:bg-slate-50/50 group">
-                                  <td className="px-8 py-5">
-                                     <p className="text-sm font-bold text-brand-dark group-hover:text-brand-primary transition-colors">{sub.testTitle}</p>
-                                     <p className="text-[10px] text-slate-400">{new Date(sub.submittedAt).toLocaleDateString()}</p>
-                                  </td>
-                                  <td className="px-8 py-5">
-                                     <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${isEvaluated ? 'bg-green-100 text-green-600' : 'bg-orange-100 text-orange-600'}`}>{sub.status}</span>
-                                  </td>
-                                  <td className="px-8 py-5">
-                                     <span className="text-sm font-black text-brand-primary">{sub.marks || '--'}</span>
-                                  </td>
-                                  <td className="px-8 py-5 text-right flex items-center justify-end gap-3">
-                                     <button onClick={() => setViewingPdf({ url: sub.answerSheetUrl, title: `Sent: ${sub.testTitle}` })} className="p-2 bg-slate-50 text-slate-400 hover:text-brand-primary hover:bg-brand-primary/10 rounded-xl transition-all"><FileText size={16} /></button>
-                                     {isEvaluated && (
-                                       <button onClick={() => setViewingPdf({ url: sub.evaluatedSheetUrl, title: `Checked: ${sub.testTitle}` })} className="px-3 py-1.5 bg-brand-primary text-white rounded-xl text-[10px] font-black uppercase hover:bg-brand-blue shadow-md transition-all">Results</button>
-                                     )}
-                                  </td>
-                               </tr>
-                             );
-                           })}
-                        </tbody>
-                     </table>
-                  </div>
-                </div>
-              )}
-
-              {/* Other tabs follow similar clean visual structure */}
-              {activeTab === 'tests' && (
-                 <div className="space-y-8 animate-fade-up">
-                    <div className="bg-white rounded-[2.5rem] border border-slate-100 shadow-sm p-8">
-                       <h3 className="text-2xl font-display font-bold text-brand-dark mb-8">Test Repository</h3>
-                       <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                          {availableTests.map((test) => {
-                             const submission = submissions.find(s => s.testId === test.id);
-                             const isUnlocked = test.accessType === 'Free' || isPlanActive;
-                             return (
-                               <div key={test.id} className="p-6 rounded-[2rem] bg-slate-50 border border-slate-100 relative group overflow-hidden">
-                                  {!isUnlocked && <div className="absolute inset-0 bg-white/40 backdrop-blur-sm flex flex-col items-center justify-center z-10"><Lock size={20} className="mb-2"/><p className="text-[9px] font-black uppercase">Premium Only</p></div>}
-                                  <h4 className="font-bold text-brand-dark text-lg mb-1">{test.title}</h4>
-                                  <p className="text-[10px] text-brand-primary font-bold mb-6">{test.subject}</p>
-                                  <div className="flex flex-col gap-2">
-                                     <button onClick={() => isUnlocked && setViewingPdf({url: test.pdfLink, title: test.title})} className="w-full py-2.5 bg-brand-primary text-white rounded-xl text-[10px] font-black uppercase shadow-lg">View Paper</button>
-                                     <div className="relative">
-                                        <input type="file" accept="application/pdf" disabled={!isUnlocked || !!submission} onChange={(e) => handleFileUpload(e, test)} className="absolute inset-0 opacity-0 cursor-pointer disabled:cursor-not-allowed" />
-                                        <button className="w-full py-2.5 bg-white border border-slate-200 text-brand-dark rounded-xl text-[10px] font-black uppercase flex items-center justify-center gap-2">
-                                          {uploadingTestId === test.id ? <Loader2 className="animate-spin" size={12}/> : !!submission ? <CheckCircle2 size={12}/> : <Upload size={12}/>}
-                                          {uploadingTestId === test.id ? 'Uploading...' : !!submission ? 'Submitted' : 'Upload Solution'}
-                                        </button>
-                                     </div>
-                                  </div>
-                               </div>
-                             );
-                          })}
+                    <div className="pt-4">
+                       <div className="flex justify-between text-[10px] font-bold mb-1.5 opacity-60"><span>Attempt Streak</span><span>12 Days</span></div>
+                       <div className="w-full h-1.5 bg-white/5 rounded-full overflow-hidden">
+                          <div className="h-full bg-brand-orange rounded-full w-2/3"></div>
                        </div>
                     </div>
                  </div>
-              )}
+              </div>
 
-              {activeTab === 'resources' && (
-                <div className="space-y-8 animate-fade-up">
-                  <div className="bg-white rounded-[2.5rem] border border-slate-100 shadow-sm p-8">
-                     <h3 className="text-2xl font-display font-bold text-brand-dark mb-8">Library Resources</h3>
-                     <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                       {libraryMaterials.map((mat) => (
-                           <div key={mat.id} className="p-6 rounded-[2rem] bg-white border border-slate-100 hover:border-brand-primary/30 shadow-sm flex flex-col h-full">
-                              <div className="w-10 h-10 bg-brand-primary/10 text-brand-primary rounded-xl flex items-center justify-center mb-4"><BookOpen size={20} /></div>
-                              <h4 className="font-bold text-brand-dark text-lg mb-1 flex-1">{mat.title}</h4>
-                              <p className="text-[10px] font-bold text-slate-400 mb-6">{mat.subject} • {mat.type}</p>
-                              <div className="flex gap-2">
-                                <button onClick={() => setViewingPdf({url: mat.pdfLink, title: mat.title})} className="flex-1 py-3 bg-slate-50 text-brand-dark rounded-xl font-bold text-xs hover:bg-brand-primary hover:text-white transition-all">Preview</button>
-                                <button onClick={() => window.open(mat.pdfLink, '_blank')} className="py-3 px-4 rounded-xl border border-slate-200 text-slate-400 hover:text-brand-primary transition-all"><Download size={14} /></button>
-                              </div>
-                           </div>
+              {/* Dashboard Content Grid */}
+              <div className="grid lg:grid-cols-2 gap-8">
+                 <div className="space-y-6">
+                    <h4 className="font-bold text-slate-800 flex items-center gap-2"><Clock size={18} className="text-brand-primary"/> Recent Activity</h4>
+                    <div className="bg-white rounded-[2rem] border border-slate-100 shadow-sm overflow-hidden">
+                       {submissions.slice(0, 3).map((sub, i) => (
+                         <div key={i} className="p-5 border-b border-slate-50 flex items-center justify-between hover:bg-slate-50/50 transition-colors">
+                            <div className="flex items-center gap-4">
+                               <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${sub.status === 'Evaluated' ? 'bg-green-50 text-green-500' : 'bg-orange-50 text-orange-500'}`}><FileText size={20}/></div>
+                               <div>
+                                  <p className="text-sm font-bold text-brand-dark">{sub.testTitle}</p>
+                                  <p className="text-[10px] text-slate-400 font-bold uppercase">{new Date(sub.submittedAt).toLocaleDateString()}</p>
+                               </div>
+                            </div>
+                            <span className={`text-[10px] font-black uppercase px-2.5 py-1 rounded-full ${sub.status === 'Evaluated' ? 'bg-green-500 text-white' : 'bg-orange-500 text-white'}`}>{sub.status}</span>
+                         </div>
                        ))}
+                       {submissions.length === 0 && <div className="p-10 text-center text-slate-300 italic">No recent activity.</div>}
+                       <button onClick={() => setActiveTab('results')} className="w-full py-4 text-[10px] font-black text-brand-primary uppercase tracking-widest hover:bg-slate-50 transition-colors">View All Submissions <ArrowUpRight size={12} className="inline ml-1"/></button>
+                    </div>
+                 </div>
+
+                 <div className="space-y-6">
+                    <h4 className="font-bold text-slate-800 flex items-center gap-2"><Zap size={18} className="text-brand-orange"/> Weak Area Analysis</h4>
+                    <div className="bg-white p-8 rounded-[2rem] border border-slate-100 shadow-sm h-full">
+                       {stats ? (
+                         <div className="space-y-6">
+                            {stats.subjectStats.map((s, i) => (
+                              <div key={i}>
+                                <div className="flex justify-between text-xs font-bold mb-2">
+                                   <span className="text-brand-dark">{s.name}</span>
+                                   <span className={s.avg < 50 ? 'text-red-500' : 'text-green-500'}>{Math.round(s.avg)}%</span>
+                                </div>
+                                <div className="w-full h-2 bg-slate-50 rounded-full overflow-hidden">
+                                   <div className={`h-full rounded-full ${s.avg < 50 ? 'bg-red-500' : 'bg-green-500'}`} style={{ width: `${s.avg}%` }}></div>
+                                </div>
+                              </div>
+                            ))}
+                         </div>
+                       ) : (
+                         <div className="h-full flex flex-col items-center justify-center text-center py-10">
+                            <BarChart3 size={40} className="text-slate-100 mb-4" />
+                            <p className="text-slate-400 text-sm font-bold">Evaluation required for analytics.</p>
+                         </div>
+                       )}
+                    </div>
+                 </div>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'tests' && (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+               {availableTests.map((test) => (
+                 <div key={test.id} className="bg-white rounded-3xl border border-slate-100 p-6 shadow-sm hover:shadow-xl transition-all group">
+                    <div className="flex justify-between items-start mb-6">
+                       <div className="w-12 h-12 bg-brand-primary/5 text-brand-primary rounded-2xl flex items-center justify-center"><Book size={24}/></div>
+                       <span className="text-[10px] font-black text-brand-primary bg-brand-primary/10 px-2 py-0.5 rounded uppercase">Live Test</span>
+                    </div>
+                    <h3 className="text-lg font-bold text-brand-dark mb-1 group-hover:text-brand-primary transition-colors">{test.title}</h3>
+                    <p className="text-xs text-slate-400 font-bold mb-6 flex items-center gap-2"><Calendar size={14}/> {test.date}</p>
+                    <div className="flex flex-col gap-2">
+                       <button 
+                         onClick={() => setViewingPdf({ url: test.pdfLink, title: test.title })}
+                         className="w-full py-3 bg-slate-50 text-slate-500 font-black text-[10px] uppercase rounded-xl hover:bg-brand-primary hover:text-white transition-all flex items-center justify-center gap-2"
+                       >
+                         <Download size={14}/> Download Question Paper
+                       </button>
+                       <label className={`w-full py-3 bg-brand-dark text-white font-black text-[10px] uppercase rounded-xl flex items-center justify-center gap-2 cursor-pointer hover:bg-brand-primary transition-all ${uploadingTestId === test.id ? 'opacity-50 cursor-wait' : ''}`}>
+                          <Upload size={14}/> {uploadingTestId === test.id ? 'Uploading...' : 'Upload Answer Sheet'}
+                          <input type="file" className="hidden" accept="application/pdf" onChange={(e) => handleFileUpload(e, test)} disabled={uploadingTestId !== null} />
+                       </label>
+                    </div>
+                 </div>
+               ))}
+               {availableTests.length === 0 && (
+                 <div className="col-span-full py-32 text-center">
+                    <AlertCircle size={48} className="mx-auto text-slate-200 mb-4" />
+                    <h4 className="text-xl font-bold text-slate-300">No scheduled tests for your course.</h4>
+                    <p className="text-sm text-slate-400 mt-1">Check back soon for upcoming CA series.</p>
+                 </div>
+               )}
+            </div>
+          )}
+
+          {activeTab === 'results' && (
+            <div className="space-y-6">
+               <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
+                  <div className="p-6 border-b border-slate-100 bg-slate-50/50">
+                     <h3 className="font-bold text-brand-dark">Evaluation Archive</h3>
+                     <p className="text-xs text-slate-400">Review your past performance and evaluator feedback.</p>
+                  </div>
+                  <table className="w-full text-left">
+                     <thead className="bg-slate-50">
+                        <tr className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                           <th className="px-6 py-4">Test Description</th>
+                           <th className="px-6 py-4">Submission</th>
+                           <th className="px-6 py-4">Result</th>
+                           <th className="px-6 py-4 text-right">Preview Result</th>
+                        </tr>
+                     </thead>
+                     <tbody className="divide-y divide-slate-50">
+                        {submissions.map((sub, i) => (
+                           <tr key={i} className="hover:bg-slate-50/50 group">
+                              <td className="px-6 py-5">
+                                 <p className="text-sm font-bold text-brand-dark">{sub.testTitle}</p>
+                                 <p className="text-[10px] text-slate-400 font-bold uppercase">{new Date(sub.submittedAt).toLocaleDateString()}</p>
+                              </td>
+                              <td className="px-6 py-5">
+                                 <button onClick={() => setViewingPdf({ url: sub.answerSheetUrl, title: "Your Submission" })} className="p-2 text-slate-300 hover:text-brand-dark rounded-lg transition-all"><Eye size={16}/></button>
+                              </td>
+                              <td className="px-6 py-5">
+                                 {sub.status === 'Evaluated' ? (
+                                   <div className="flex items-center gap-2">
+                                      <div className="w-8 h-8 rounded-full bg-green-50 flex items-center justify-center text-green-600 font-black text-[10px]">{sub.marks}</div>
+                                      <span className="text-[9px] font-black text-green-600 uppercase">Checked</span>
+                                   </div>
+                                 ) : sub.status === 'Review' ? (
+                                    <span className="text-[9px] font-black text-orange-400 uppercase tracking-widest">In Final Review</span>
+                                 ) : (
+                                    <span className="text-[9px] font-black text-slate-300 uppercase tracking-widest">Pending Evaluation</span>
+                                 )}
+                              </td>
+                              <td className="px-6 py-5 text-right">
+                                 {sub.evaluatedSheetUrl ? (
+                                    <button onClick={() => setViewingPdf({ url: sub.evaluatedSheetUrl, title: "Checked Copy" })} className="p-2 bg-brand-primary/5 text-brand-primary rounded-xl hover:bg-brand-primary hover:text-white transition-all"><FileText size={18}/></button>
+                                 ) : (
+                                    <div className="w-8 h-8 rounded-xl bg-slate-50 flex items-center justify-center text-slate-200 mx-auto"><Lock size={14}/></div>
+                                 )}
+                              </td>
+                           </tr>
+                        ))}
+                     </tbody>
+                  </table>
+                  {submissions.length === 0 && <div className="py-24 text-center text-slate-300 italic">No submissions found.</div>}
+               </div>
+            </div>
+          )}
+
+          {activeTab === 'mentorship' && (
+            <div className="max-w-4xl mx-auto space-y-8">
+               <div className="bg-brand-dark rounded-[3rem] p-10 text-white relative overflow-hidden">
+                  <div className="absolute top-0 right-0 p-8 opacity-10"><GraduationCap size={200}/></div>
+                  <h3 className="text-3xl font-display font-bold mb-4 relative z-10">Mentorship Desk</h3>
+                  <p className="opacity-60 text-sm max-w-xl relative z-10">Clear your doubts 1-on-1 with All India Rankers. Choose your mentor and book a preferred slot.</p>
+                  <div className="flex gap-4 mt-8 relative z-10">
+                     <div className="flex -space-x-3">
+                        {mentors.map(m => (
+                           <img key={m.id} src={m.img} className="w-10 h-10 rounded-full border-2 border-brand-dark" alt={m.name}/>
+                        ))}
+                     </div>
+                     <div className="text-xs font-bold text-white/40"><span className="text-white">Active Mentors</span><br/>Available Today</div>
+                  </div>
+               </div>
+
+               <div className="grid md:grid-cols-2 gap-8">
+                  <div className="space-y-6">
+                     <h4 className="font-bold text-brand-dark pl-2">Select Your Mentor</h4>
+                     <div className="space-y-3">
+                        {mentors.map((m) => (
+                           <button 
+                              key={m.id} 
+                              onClick={() => setSelectedMentor(m)}
+                              className={`w-full flex items-center gap-4 p-4 rounded-3xl border transition-all ${selectedMentor?.id === m.id ? 'bg-brand-primary border-brand-primary text-white shadow-xl shadow-brand-primary/20' : 'bg-white border-slate-100 hover:border-brand-primary/30'}`}
+                           >
+                              <img src={m.img} className="w-12 h-12 rounded-2xl object-cover" alt={m.name}/>
+                              <div className="text-left">
+                                 <p className="font-bold text-sm">{m.name}</p>
+                                 <p className={`text-[10px] font-bold ${selectedMentor?.id === m.id ? 'text-white/60' : 'text-brand-primary'}`}>{m.rank} • {m.spec}</p>
+                              </div>
+                           </button>
+                        ))}
                      </div>
                   </div>
+
+                  <div className="bg-white rounded-[2.5rem] border border-slate-100 p-8 space-y-4">
+                     <div className="space-y-1">
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Preferred Date</label>
+                        <div className="relative">
+                           <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16}/>
+                           <input type="date" className="w-full pl-12 pr-4 py-3 bg-slate-50 rounded-xl text-sm font-bold outline-none" value={selectedDate} onChange={e => setSelectedDate(e.target.value)}/>
+                        </div>
+                     </div>
+                     <div className="space-y-1">
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Choose Slot</label>
+                        <div className="relative">
+                           <Clock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16}/>
+                           <select className="w-full pl-12 pr-4 py-3 bg-slate-50 rounded-xl text-sm font-bold outline-none appearance-none" value={selectedSlot} onChange={e => setSelectedSlot(e.target.value)}>
+                              <option value="">Select Time Slot</option>
+                              <option value="10:00 AM - 10:30 AM">10:00 AM - 10:30 AM</option>
+                              <option value="02:00 PM - 02:30 PM">02:00 PM - 02:30 PM</option>
+                              <option value="06:00 PM - 06:30 PM">06:00 PM - 06:30 PM</option>
+                              <option value="09:00 PM - 09:30 PM">09:00 PM - 09:30 PM</option>
+                           </select>
+                        </div>
+                     </div>
+                     <div className="space-y-1">
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Query/Reason</label>
+                        <div className="relative">
+                           <MessageSquare className="absolute left-4 top-4 text-slate-400" size={16}/>
+                           <textarea className="w-full pl-12 pr-4 py-3 bg-slate-50 rounded-xl text-sm font-bold outline-none h-24" placeholder="Briefly explain your doubts..." value={bookingReason} onChange={e => setBookingReason(e.target.value)}></textarea>
+                        </div>
+                     </div>
+                     <Button 
+                        variant="primary" fullWidth className="!py-4 shadow-xl" 
+                        onClick={handleBookSession}
+                        disabled={isBooking || !selectedMentor || !selectedDate || !selectedSlot}
+                     >
+                        {isBooking ? <Loader2 className="animate-spin" /> : 'Confirm Booking Request'}
+                     </Button>
+                  </div>
+               </div>
+
+               <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
+                   <div className="p-6 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
+                       <h3 className="font-bold text-brand-dark">Session History</h3>
+                       <div className="flex gap-2">
+                           <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-orange-400"></div><span className="text-[9px] font-black uppercase text-slate-400">Pending</span></div>
+                           <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-green-500"></div><span className="text-[9px] font-black uppercase text-slate-400">Confirmed</span></div>
+                       </div>
+                   </div>
+                   <div className="p-6">
+                      {bookings.map((b, i) => (
+                        <div key={i} className="flex items-center justify-between py-4 border-b border-slate-50 last:border-0">
+                           <div className="flex items-center gap-4">
+                              <div className="w-10 h-10 bg-slate-50 rounded-xl flex items-center justify-center text-slate-400"><Calendar size={18}/></div>
+                              <div>
+                                 <p className="text-sm font-bold text-brand-dark">{b.mentorName}</p>
+                                 <p className="text-[10px] text-slate-400 font-bold uppercase">{b.date} • {b.slot}</p>
+                              </div>
+                           </div>
+                           <span className={`text-[9px] font-black uppercase px-2 py-1 rounded-full ${b.status === 'Confirmed' ? 'bg-green-100 text-green-600' : 'bg-orange-100 text-orange-600'}`}>{b.status}</span>
+                        </div>
+                      ))}
+                      {bookings.length === 0 && <div className="text-center py-10 text-slate-300 italic text-sm">No session requests yet.</div>}
+                   </div>
+               </div>
+            </div>
+          )}
+
+          {activeTab === 'resources' && (
+             <div className="space-y-8">
+                <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm">
+                   <div className="flex flex-col md:flex-row justify-between items-center gap-6">
+                      <div className="flex-1">
+                         <h3 className="text-xl font-display font-bold text-brand-dark mb-2">Subject Wise Resources</h3>
+                         <p className="text-xs text-slate-400">Exclusive notes, question banks, and topper copies for your course.</p>
+                      </div>
+                      <div className="relative w-full md:w-64">
+                         <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" />
+                         <input type="text" placeholder="Search resources..." className="w-full pl-12 pr-4 py-3 bg-slate-50 border border-slate-100 rounded-xl text-xs font-bold outline-none"/>
+                      </div>
+                   </div>
                 </div>
-              )}
-            </>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                   {libraryMaterials.map((m) => (
+                      <div key={m.id} className="bg-white rounded-3xl border border-slate-100 p-6 shadow-sm hover:shadow-lg transition-all">
+                         <div className="flex justify-between items-start mb-6">
+                            <div className="w-12 h-12 bg-indigo-50 text-indigo-500 rounded-2xl flex items-center justify-center"><Library size={24}/></div>
+                            <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded ${m.accessType === 'Premium' ? 'bg-brand-orange/10 text-brand-orange' : 'bg-green-50 text-green-600'}`}>{m.accessType}</span>
+                         </div>
+                         <h4 className="font-bold text-brand-dark mb-1">{m.title}</h4>
+                         <p className="text-[10px] text-brand-primary font-bold uppercase mb-4">{m.subject}</p>
+                         <button 
+                            onClick={() => setViewingPdf({ url: m.pdfLink, title: m.title })}
+                            className="w-full py-2.5 bg-slate-50 text-slate-500 rounded-xl text-[10px] font-black uppercase hover:bg-brand-primary hover:text-white transition-all flex items-center justify-center gap-2"
+                         >
+                            <Eye size={14}/> Preview Resource
+                         </button>
+                      </div>
+                   ))}
+                </div>
+             </div>
           )}
         </div>
       </main>
