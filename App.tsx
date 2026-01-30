@@ -24,9 +24,10 @@ import { TeacherPanel } from './components/TeacherPanel';
 import { Checkout } from './components/Checkout';
 import { Blog } from './components/Blog';
 import { BlogPost } from './components/BlogPost';
+import { CourseLanding } from './components/CourseLanding';
 import { auth, signOut } from './firebaseConfig';
 
-export type ViewType = 'home' | 'about-detail' | 'test-detail' | 'process-detail' | 'mentors-detail' | 'pricing-detail' | 'topic-detail' | 'admin-panel' | 'admin-login' | 'teacher-login' | 'teacher-panel' | 'test-series-detail' | 'student-login' | 'student-dashboard' | 'checkout' | 'blog' | 'blog-post';
+export type ViewType = 'home' | 'about-detail' | 'test-detail' | 'process-detail' | 'mentors-detail' | 'pricing-detail' | 'topic-detail' | 'admin-panel' | 'admin-login' | 'teacher-login' | 'teacher-panel' | 'test-series-detail' | 'student-login' | 'student-dashboard' | 'checkout' | 'blog' | 'blog-post' | 'final-landing' | 'inter-landing' | 'foundation-landing';
 
 export interface CartItem {
   id: string;
@@ -94,6 +95,7 @@ const App: React.FC = () => {
   useEffect(() => {
     const handleHashChange = () => {
       const hash = window.location.hash.replace('#', '');
+      
       if (hash === 'admin-login') {
         isAdminLoggedIn ? setView('admin-panel') : setView('admin-login');
         return;
@@ -107,6 +109,12 @@ const App: React.FC = () => {
         setView('blog-post');
         return;
       }
+      
+      // Course Landing Pages
+      if (hash === 'ca-final-test-series') { setView('final-landing'); return; }
+      if (hash === 'ca-inter-test-series') { setView('inter-landing'); return; }
+      if (hash === 'ca-foundation-test-series') { setView('foundation-landing'); return; }
+
       if (hash.startsWith('topic-')) {
         const topicName = hash.replace('topic-', '').replace(/-/g, ' ');
         setSelectedTopic(topicName);
@@ -130,6 +138,12 @@ const App: React.FC = () => {
       window.location.hash = `topic-${id.toLowerCase().replace(/\s+/g, '-')}`;
     } else if (newView === 'blog-post' && id) {
       window.location.hash = `blog-post-${id}`;
+    } else if (newView === 'final-landing') {
+      window.location.hash = 'ca-final-test-series';
+    } else if (newView === 'inter-landing') {
+      window.location.hash = 'ca-inter-test-series';
+    } else if (newView === 'foundation-landing') {
+      window.location.hash = 'ca-foundation-test-series';
     } else {
       window.location.hash = newView;
     }
@@ -179,6 +193,12 @@ const App: React.FC = () => {
           <Blog onNavigate={navigate} />
         ) : view === 'blog-post' ? (
           <BlogPost id={selectedPostId} onBack={() => navigate('blog')} onNavigate={navigate} />
+        ) : view === 'final-landing' ? (
+          <CourseLanding level="final" onNavigate={navigate} onAddToCart={(item) => setCart([...cart, item])} />
+        ) : view === 'inter-landing' ? (
+          <CourseLanding level="inter" onNavigate={navigate} onAddToCart={(item) => setCart([...cart, item])} />
+        ) : view === 'foundation-landing' ? (
+          <CourseLanding level="foundation" onNavigate={navigate} onAddToCart={(item) => setCart([...cart, item])} />
         ) : (
           <DetailedPages view={view} topic={selectedTopic} onBack={() => navigate('home')} onNavigate={navigate} onAddToCart={(item) => setCart([...cart, item])} />
         )}
