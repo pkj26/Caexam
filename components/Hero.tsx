@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowRight, Star, ShieldCheck, ClipboardCheck, User, Phone, CheckCircle2, ChevronDown } from 'lucide-react';
+import { ArrowRight, Star, ShieldCheck, ClipboardCheck, User, Phone, CheckCircle2, ChevronDown, Loader2 } from 'lucide-react';
 import { Button } from './Button';
+import { db, collection, addDoc, serverTimestamp } from '../firebaseConfig';
 
 export const Hero: React.FC = () => {
   const [liveCount, setLiveCount] = useState(Math.floor(Math.random() * (290 - 275 + 1)) + 275);
   const [formData, setFormData] = useState({ name: '', mobile: '', course: 'CA Final' });
+  const [isSubmitting, setIsSubmitting] = useState(false);
   
   const [textIndex, setTextIndex] = useState(0);
   const [displayedText, setDisplayedText] = useState("");
@@ -49,9 +51,38 @@ export const Hero: React.FC = () => {
     return () => clearTimeout(timer);
   }, [displayedText, isDeleting, textIndex, typingSpeed]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    alert(`Thanks ${formData.name}! We will send the ${formData.course} trial paper to ${formData.mobile} shortly.`);
+    if (formData.mobile.length < 10) {
+      alert("Please enter a valid 10-digit mobile number.");
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      // Create a student record in Firestore
+      // This matches the schema used in StudentLogin and expected by AdminPanel
+      await addDoc(collection(db, "students"), {
+        name: formData.name,
+        phone: formData.mobile,
+        course: formData.course,
+        email: `${formData.name.toLowerCase().replace(/\s+/g, '')}@trial.com`, // Placeholder email
+        planStatus: 'Active',
+        plan: 'Free Trial',
+        joinDate: new Date().toISOString().split('T')[0],
+        createdAt: serverTimestamp(),
+        source: 'Hero Lead Form'
+      });
+
+      alert(`Success! Welcome ${formData.name}. Your free trial for ${formData.course} has been activated. Check your WhatsApp for the paper.`);
+      setFormData({ name: '', mobile: '', course: 'CA Final' });
+    } catch (error) {
+      console.error("Error capturing lead:", error);
+      alert("Something went wrong. Please try again later.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -117,7 +148,7 @@ export const Hero: React.FC = () => {
                   <div className="relative group">
                     <Phone className="absolute left-4 top-1/2 -translate-y-1/2 text-brand-dark/30 group-focus-within:text-brand-primary transition-colors" size={18} />
                     <input 
-                      type="tel" placeholder="WhatsApp No." required
+                      type="tel" placeholder="WhatsApp No." required maxLength={10}
                       className="w-full pl-12 pr-4 py-4 bg-white border border-slate-200 rounded-2xl text-sm font-bold focus:ring-4 focus:ring-brand-primary/5 outline-none transition-all"
                       value={formData.mobile} onChange={(e) => setFormData({...formData, mobile: e.target.value})}
                     />
@@ -131,8 +162,14 @@ export const Hero: React.FC = () => {
                     </select>
                     <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-brand-dark/30 pointer-events-none" size={18} />
                   </div>
-                  <Button type="submit" variant="blue" className="sm:col-span-2 !py-4 !rounded-2xl !text-base shadow-xl shadow-brand-blue/20">
-                    Get Free Trial Paper
+                  <Button type="submit" variant="blue" className="sm:col-span-2 !py-4 !rounded-2xl !text-base shadow-xl shadow-brand-blue/20" disabled={isSubmitting}>
+                    {isSubmitting ? (
+                      <>
+                        <Loader2 className="animate-spin mr-2" size={20} /> Processing...
+                      </>
+                    ) : (
+                      'Get Free Trial Paper'
+                    )}
                   </Button>
                 </form>
               </div>
